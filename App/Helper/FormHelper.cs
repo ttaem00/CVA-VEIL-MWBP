@@ -357,7 +357,6 @@ namespace MouseWithoutBorders
                             QuitDueToCommunicationError();
                         }
 
-                        GC.Collect();
                     }
                     else
                     {

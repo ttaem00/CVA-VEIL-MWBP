@@ -311,7 +311,16 @@ internal partial class FrmMatrix
             });
             cursorRecovery.Name = "nativeCursorRecovery";
             SetOptionTip(cursorRecovery, null, "Turns on Windows Mouse Keys and turns off this PC's replacement cursor. This may restore a missing cursor; it does not fix input or network delays. Mouse Keys affects the numeric keypad. To undo, turn Mouse Keys off in Windows Settings > Accessibility > Mouse.");
-            mouse.Add(Actions(cursorRecovery));
+            var inputRecovery = SettingsButton("Restore mouse input", (_, _) =>
+            {
+                checkBoxDrawMouse.Checked = false;
+                CustomCursor.ShowFakeMouseCursor(int.MinValue, int.MinValue);
+                InitAndCleanup.PleaseReopenSocket = InitAndCleanup.REOPEN_WHEN_HOTKEY;
+                cursorRecoveryHelp.Text = Ui.Text("Input reconnection requested. Sharing pauses briefly.");
+            });
+            inputRecovery.Name = "inputRecovery";
+            SetOptionTip(inputRecovery, null, "Turns off this PC's replacement cursor and restarts input hooks and PC connections. Sharing pauses briefly. Keeps your layout, shortcuts and file-sharing settings. Does not change Windows Mouse Keys or the numeric keypad.");
+            mouse.Add(Actions(inputRecovery, cursorRecovery));
             mouse.Add(cursorRecoveryHelp);
             AddOption(mouse, checkBoxBlockScreenSaver, "On", "Keep other PCs' screen savers from starting while you are actively using MWB.");
 

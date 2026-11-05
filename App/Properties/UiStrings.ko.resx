@@ -870,4 +870,7 @@ IP 주소는 네트워크에서 사용하는 PC의 주소입니다. 해당 PC의
   <data name="Send files to {0}" xml:space="preserve"><value>{0}에 파일 보내기</value></data>
   <data name="The PC disconnected. Connect again, then resend the files." xml:space="preserve"><value>PC 연결이 끊어졌습니다. 다시 연결한 뒤 파일을 보내세요.</value></data>
   <data name="Select between 1 and {0} files." xml:space="preserve"><value>파일을 1~{0}개 선택하세요.</value></data>
+  <data name="Restore mouse input" xml:space="preserve"><value>마우스 입력 복구</value></data>
+  <data name="Input reconnection requested. Sharing pauses briefly." xml:space="preserve"><value>입력 재연결을 요청했습니다. 공유가 잠시 끊깁니다.</value></data>
+  <data name="Turns off this PC's replacement cursor and restarts input hooks and PC connections. Sharing pauses briefly. Keeps your layout, shortcuts and file-sharing settings. Does not change Windows Mouse Keys or the numeric keypad." xml:space="preserve"><value>이 PC의 대체 커서를 끄고 입력 훅과 PC 연결을 다시 시작합니다. 공유가 잠시 끊기며 배치·단축키·파일 공유 설정은 유지합니다. Windows 마우스 키와 숫자 키패드 설정은 바꾸지 않습니다.</value></data>
 </root>

@@ -828,6 +828,25 @@ public sealed class Rc8SettingsTests
                 var tips = (ToolTip)typeof(MouseWithoutBorders.FrmMatrix).GetField("toolTip", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(settings)!;
                 StringAssert.Contains(tips.GetToolTip(recovery), "numeric keypad");
                 Assert.AreEqual(tips.GetToolTip(recovery), recovery.AccessibleDescription);
+                var inputRecovery = Descendants(other).OfType<Button>().Single(c => c.Name == "inputRecovery");
+                Assert.IsTrue(inputRecovery.Visible && inputRecovery.Enabled && inputRecovery.TabStop);
+                Assert.AreEqual("Restore mouse input", inputRecovery.Text);
+                StringAssert.Contains(tips.GetToolTip(inputRecovery), "restarts input hooks");
+                Assert.AreEqual(tips.GetToolTip(inputRecovery), inputRecovery.AccessibleDescription);
+                var sharedBeforeRecovery = System.Text.Json.JsonSerializer.Serialize(Setting.Values.SharedSnapshot());
+                int pendingReconnect = InitAndCleanup.PleaseReopenSocket;
+                try
+                {
+                    InitAndCleanup.PleaseReopenSocket = 0;
+                    inputRecovery.PerformClick();
+                    Assert.IsFalse(Setting.Values.DrawMouse);
+                    Assert.AreEqual(InitAndCleanup.REOPEN_WHEN_HOTKEY, InitAndCleanup.PleaseReopenSocket);
+                    Assert.AreEqual(sharedBeforeRecovery, System.Text.Json.JsonSerializer.Serialize(Setting.Values.SharedSnapshot()),
+                        "Recovery preserves the connection layout, shortcuts and sharing preferences.");
+                    Setting.Values.SaveSettingsSynchronously();
+                    Assert.IsFalse(PortableSettingsStore.Read(path).Properties.DrawMouseCursor);
+                }
+                finally { InitAndCleanup.PleaseReopenSocket = pendingReconnect; }
                 var divider = Descendants(other).Single(c => c.Name == "keyboardShortcutDivider");
                 foreach (var width in new[] { originalSize.Width, originalSize.Width + 240, originalSize.Width * 2 / 3, originalSize.Width })
                 {
