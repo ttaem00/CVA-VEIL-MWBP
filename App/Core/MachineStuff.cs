@@ -8,6 +8,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 using Microsoft.PowerToys.Telemetry;
@@ -957,14 +958,11 @@ internal static class MachineStuff
 
         if (id != ID.NONE)
         {
-            // Ask current machine to hide the Mouse cursor
-            if (desMachineID != Common.MachineID)
-            {
-                Common.SendPackage(desMachineID, PackageType.HideMouse);
-            }
-
-            bool changed = desMachineID != id;
+            ID previousMachine = desMachineID;
+            bool changed = previousMachine != id;
             NewDesMachineID = Common.DesMachineID = id;
+            if (changed && previousMachine != Common.MachineID)
+                _ = Task.Run(() => Common.SendPackage(previousMachine, PackageType.HideMouse));
             if (changed) Clipboard.OnMachineSwitched();
             SwitchLocation.X = Event.XY_BY_PIXEL + primaryScreenBounds.Left + ((primaryScreenBounds.Right - primaryScreenBounds.Left) / 2);
             SwitchLocation.Y = Event.XY_BY_PIXEL + primaryScreenBounds.Top + ((primaryScreenBounds.Bottom - primaryScreenBounds.Top) / 2);

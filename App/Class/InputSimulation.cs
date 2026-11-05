@@ -36,16 +36,26 @@ namespace MouseWithoutBorders.Class
 
             if (input.type == 1) input.ki.dwExtraInfo = InjectedInputTag;
             else input.mi.dwExtraInfo = InjectedInputTag;
-            // Movement cannot acquire or release a held key/button; only state changes need its owner.
+            // Native movement does not change held input; a broker round trip must not delay it.
             bool movementOnly = input.type == 0 && (input.mi.dwFlags & (int)NativeMethods.MOUSEEVENTF.MOVE) != 0
                 && (input.mi.dwFlags & ~(int)(NativeMethods.MOUSEEVENTF.MOVE | NativeMethods.MOUSEEVENTF.ABSOLUTE | NativeMethods.MOUSEEVENTF.VIRTUALDESK)) == 0;
-            if (!movementOnly && PrivilegedInput.HasHeldInput)
+            uint sent = movementOnly ? NativeMethods.SendInput64(1, [input], Marshal.SizeOf(input)) : 0;
+            if (sent != 0) return sent;
+
+            Common.DoSomethingInTheInputSimulationThread(() =>
             {
-                if (PrivilegedInput.TrySend(input, out uint ownedSent)) return ownedSent;
-                if (PrivilegedInput.HasHeldInput) return 0;
-            }
-            uint sent = NativeMethods.SendInput64(1, [input], Marshal.SizeOf(input));
-            return sent != 0 ? sent : PrivilegedInput.TrySend(input, out uint brokerSent) ? brokerSent : 0;
+                if (!movementOnly)
+                {
+                    if (PrivilegedInput.HasHeldInput)
+                    {
+                        if (PrivilegedInput.TrySend(input, out sent)) return;
+                        if (PrivilegedInput.HasHeldInput) return;
+                    }
+                    sent = NativeMethods.SendInput64(1, [input], Marshal.SizeOf(input));
+                }
+                if (sent == 0) PrivilegedInput.TrySend(input, out sent);
+            });
+            return sent;
         }
 
         internal static void SendKey(KEYBDDATA kd)
@@ -79,11 +89,7 @@ namespace MouseWithoutBorders.Class
                 structInput.ki.wVk = (short)kd.wVk;
                 structInput.ki.dwFlags = (int)dwFlags;
 
-                Common.DoSomethingInTheInputSimulationThread(() =>
-                {
-                    // key press simulation
-                    SendInputEx(structInput);
-                });
+                SendInputEx(structInput);
 
             }
 
@@ -94,7 +100,6 @@ namespace MouseWithoutBorders.Class
         // Md.X, Md.Y is from 0 to 65535
         internal static uint SendMouse(MOUSEDATA md)
         {
-            uint rv = 0;
             NativeMethods.INPUT64 mouse_input = default;
 
             mouse_input.type = 0;
@@ -106,10 +111,7 @@ namespace MouseWithoutBorders.Class
 
             mouse_input.mi = MouseInput(md);
 
-            Common.DoSomethingInTheInputSimulationThread(() =>
-            {
-                rv = SendInputEx(mouse_input);
-            });
+            uint rv = SendInputEx(mouse_input);
 
             if (Common.MainFormVisible && !DragDrop.IsDropping)
             {
@@ -181,10 +183,7 @@ namespace MouseWithoutBorders.Class
 
             Logger.LogDebug($"InputSimulation.MoveMouseEx: x = {x}, y = {y}.");
 
-            Common.DoSomethingInTheInputSimulationThread(() =>
-            {
-                SendInputEx(mouse_input);
-            });
+            SendInputEx(mouse_input);
         }
 
         // x, y is in pixel
@@ -207,12 +206,7 @@ namespace MouseWithoutBorders.Class
 
             Logger.LogDebug($"InputSimulation.MoveMouseRelative: x = {dx}, y = {dy}.");
 
-            Common.DoSomethingInTheInputSimulationThread(() =>
-            {
-                SendInputEx(mouse_input);
-
-                // NativeMethods.SetCursorPos(x, y);
-            });
+            SendInputEx(mouse_input);
         }
 
         internal static NativeMethods.INPUT64[] OleDragCancelInputs()
@@ -244,18 +238,15 @@ namespace MouseWithoutBorders.Class
 
         internal static void MouseUp()
         {
-            Common.DoSomethingInTheInputSimulationThread(() =>
-            {
-                NativeMethods.INPUT64 input = default;
-                input.type = 0;
-                input.mi.dx = 0;
-                input.mi.dy = 0;
-                input.mi.mouseData = 0;
-                input.mi.dwFlags = (int)NativeMethods.MOUSEEVENTF.LEFTUP;
+            NativeMethods.INPUT64 input = default;
+            input.type = 0;
+            input.mi.dx = 0;
+            input.mi.dy = 0;
+            input.mi.mouseData = 0;
+            input.mi.dwFlags = (int)NativeMethods.MOUSEEVENTF.LEFTUP;
 
-                _ = SendInputEx(input);
-                Logger.LogDebug("MouseUp() called");
-            });
+            _ = SendInputEx(input);
+            Logger.LogDebug("MouseUp() called");
         }
 
         private static bool winDown;

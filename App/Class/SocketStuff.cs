@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation
+// Copyright (c) Microsoft Corporation
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -499,12 +499,6 @@ namespace MouseWithoutBorders.Class
             return null;
         }
 
-        private static int TcpSendData(TcpSk tcp, byte[] bytes)
-        {
-            // Covers stream initialization and the complete frame, including its JSON body.
-            lock (tcp) return TcpSendDataLocked(tcp, bytes);
-        }
-
         private static int TcpSendDataLocked(TcpSk tcp, byte[] bytes)
         {
             try
@@ -513,7 +507,7 @@ namespace MouseWithoutBorders.Class
                 Stream encryptedStream = tcp.EncryptedStream;
                 if (socket == null || !socket.Connected || encryptedStream == null)
                 {
-                    string log = $"{nameof(TcpSendData)}: The socket is no longer connected, it could have been closed by the remote host.";
+                    string log = $"{nameof(TcpSendDataLocked)}: The socket is no longer connected, it could have been closed by the remote host.";
                     Logger.Log(log);
                     throw new ExpectedSocketException(log);
                 }
@@ -530,7 +524,7 @@ namespace MouseWithoutBorders.Class
             }
             catch (Exception e) when (e is IOException or SocketException or ObjectDisposedException)
             {
-                string log = $"{nameof(TcpSendData)}: Exception writing to the socket: {tcp.MachineName}: {e.InnerException?.GetType()}/{e.Message}. (This is expected when the remote machine closes the connection during desktop switch or reconnection.)";
+                string log = $"{nameof(TcpSendDataLocked)}: Exception writing to the socket: {tcp.MachineName}: {e.InnerException?.GetType()}/{e.Message}. (This is expected when the remote machine closes the connection during desktop switch or reconnection.)";
                 Logger.Log(log);
 
                 throw e.InnerException is SocketException se ? new ExpectedSocketException(se) : new ExpectedSocketException(log);
@@ -685,7 +679,15 @@ namespace MouseWithoutBorders.Class
             }
 
             byte[] dataAsBytes = data.Bytes;
-            int rv = TcpSendData(tcp, dataAsBytes);
+            int rv;
+            lock (tcp)
+            {
+                // A queued hide may arrive after this recipient has become active again.
+                if (data.Type == PackageType.HideMouse &&
+                    (Common.DesMachineID == ID.ALL || tcp.MachineId == (uint)Common.DesMachineID))
+                    return dataAsBytes.Length;
+                rv = TcpSendDataLocked(tcp, dataAsBytes);
+            }
             if (rv < dataAsBytes.Length)
             {
                 Logger.Log("TcpSend error! Length of sent data is unexpected.");
@@ -1716,90 +1718,37 @@ namespace MouseWithoutBorders.Class
 
         internal static void SendClipboardData(Socket s, Stream ecStream)
         {
-            if (!Setting.Values.ShareClipboard || (Common.RunWithNoAdminRight && Setting.Values.OneWayClipboardMode))
+            string fileName = Clipboard.LastDragDropFile;
+            if (fileName == null)
+            {
+                SendClipboardData(s, ecStream, Clipboard.LastClipboardData, Clipboard.IsClipboardDataImage);
+                return;
+            }
+            if (!Setting.Values.ShareClipboard || !Setting.Values.TransferFile
+                || (Common.RunWithNoAdminRight && Setting.Values.OneWayClipboardMode))
             {
                 s?.Close();
                 return;
             }
+            try { _ = SendFile(s, ecStream, fileName); }
+            finally { s.Close(); }
+        }
 
-            const int CLOSE_TIMEOUT = 10;
-            byte[] header = new byte[1024];
-            string headerString = string.Empty;
-            string fileName = Clipboard.LastDragDropFile;
-            if (fileName != null)
+        // The pushed payload is fixed before its connection starts; a later file copy
+        // cannot turn an in-flight text/image push into a file transfer.
+        internal static void SendClipboardData(Socket s, Stream ecStream, byte[] data, bool image)
+        {
+            try
             {
-                if (!Setting.Values.TransferFile) { s.Close(); return; }
-                try { _ = SendFile(s, ecStream, fileName); }
-                finally { s.Close(); }
+                if (!Setting.Values.ShareClipboard || (Common.RunWithNoAdminRight && Setting.Values.OneWayClipboardMode)
+                    || data == null || data.Length == 0) return;
+                byte[] header = new TransferHeader(data.Length, image ? "image" : "text").Encode();
+                ecStream.Write(header, 0, header.Length);
+                _ = SendData(s, ecStream, data);
             }
-            else if (!Clipboard.IsClipboardDataImage && Clipboard.LastClipboardData != null)
-            {
-                try
-                {
-                    byte[] data = Clipboard.LastClipboardData;
-
-                    headerString = $"{data.Length}*{"text"}";
-                    Common.GetBytesU(headerString).CopyTo(header, 0);
-
-                    if (data != null)
-                    {
-                        ecStream.Write(header, 0, header.Length);
-                        _ = SendData(s, ecStream, data);
-                        Logger.LogDebug("Text sent: " + data.Length.ToString(CultureInfo.CurrentCulture));
-                    }
-
-                    s.Close(CLOSE_TIMEOUT);
-                }
-                catch (IOException e)
-                {
-                    string log = $"{nameof(SendClipboardData)}: Exception accessing the socket: {e.InnerException?.GetType()}/{e.Message}. (This is expected when the remote machine closes the connection during desktop switch or reconnection.)";
-                    Logger.Log(log);
-                }
-                catch (SocketException e)
-                {
-                    string log = $"{nameof(SendClipboardData)}: {e.GetType()}/{e.Message}. This is expected when the connection is closed by the remote host.";
-                    Logger.Log(log);
-                }
-                catch (ObjectDisposedException e)
-                {
-                    string log = $"{nameof(SendClipboardData)}: {e.GetType()}/{e.Message}. This is expected when the socket is disposed by a machine switch for ex..";
-                    Logger.Log(log);
-                }
-            }
-            else if (Clipboard.LastClipboardData != null && Clipboard.LastClipboardData.Length > 0)
-            {
-                byte[] data = Clipboard.LastClipboardData;
-
-                headerString = $"{data.Length}*{"image"}";
-                Common.GetBytesU(headerString).CopyTo(header, 0);
-                try
-                {
-                    ecStream.Write(header, 0, header.Length);
-                    _ = SendData(s, ecStream, data);
-                    Logger.LogDebug("Image sent: " + data.Length.ToString(CultureInfo.CurrentCulture));
-                    s.Close(CLOSE_TIMEOUT);
-                }
-                catch (IOException e)
-                {
-                    string log = $"{nameof(SendClipboardData)}: Exception accessing the socket: {e.InnerException?.GetType()}/{e.Message}. (This is expected when the remote machine closes the connection during desktop switch or reconnection.)";
-                    Logger.Log(log);
-                }
-                catch (SocketException e)
-                {
-                    string log = $"{nameof(SendClipboardData)}: {e.GetType()}/{e.Message}. This is expected when the connection is closed by the remote host.";
-                    Logger.Log(log);
-                }
-                catch (ObjectDisposedException e)
-                {
-                    string log = $"{nameof(SendClipboardData)}: {e.GetType()}/{e.Message}. This is expected when the socket is disposed by a machine switch for ex..";
-                    Logger.Log(log);
-                }
-            }
-            else
-            {
-                Logger.Log("No data available in clipboard or LastDragDropFile!");
-                s.Close();
-            }
+            catch (Exception error) when (error is IOException or SocketException or ObjectDisposedException)
+            { Logger.Log("Clipboard connection closed: " + error.Message); }
+            finally { s?.Close(); }
         }
 
         private static bool SendFileEx(Socket s, Stream ecStream, string fileName)

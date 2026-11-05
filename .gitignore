@@ -31,3 +31,7 @@ MouseWithoutBorders.prefs.json
 *.tmp
 Thumbs.db
 .DS_Store
+
+# Local development record and downloadable release bundles
+.codex-work/
+Releases/

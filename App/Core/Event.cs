@@ -251,13 +251,11 @@ internal static class Event
             {
                 Logger.LogDebug("MouseEvent: Switching to new machine:" + newDesMachineName);
 
-                // Ask current machine to hide the Mouse cursor
-                if (newDesMachineID != ID.ALL && MachineStuff.desMachineID != Common.MachineID)
-                {
-                    Common.SendPackage(MachineStuff.desMachineID, PackageType.HideMouse);
-                }
-
+                ID previousMachine = MachineStuff.desMachineID;
                 Common.DesMachineID = newDesMachineID;
+                // The previous peer must not hold up input to the new peer.
+                if (newDesMachineID != ID.ALL && previousMachine != Common.MachineID)
+                    _ = Task.Run(() => Common.SendPackage(previousMachine, PackageType.HideMouse));
 
                 Clipboard.OnMachineSwitched();
 
