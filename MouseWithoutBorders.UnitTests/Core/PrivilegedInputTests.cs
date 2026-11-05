@@ -19,6 +19,66 @@ public sealed class PrivilegedInputTests
     private static FieldInfo Field(string name) => typeof(PrivilegedInput).GetField(name, Private)!;
     private static uint Exchange(NativeMethods.INPUT64 input) => (uint)typeof(PrivilegedInput).GetMethod("ExchangeInput", Private)!.Invoke(null, [input])!;
 
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void PublicMouseMovementDoesNotWaitForAnUnrelatedStateChange(bool wheel)
+    {
+        object? oldPipe = Field("inputPipe").GetValue(null), oldAgent = Field("inputAgent").GetValue(null), oldOwns = Field("brokerOwnsInput").GetValue(null);
+        bool oldVisible = Common.MainFormVisible;
+        int oldPaint = Common.PaintCount;
+        using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
+        Exception? ownerError = null, mouseError = null;
+        uint sent = uint.MaxValue;
+        var owner = new System.Threading.Thread(() =>
+        {
+            try { Common.DoSomethingInTheInputSimulationThread(() => { entered.Set(); release.Wait(); }); }
+            catch (Exception error) { ownerError = error; }
+        }) { IsBackground = true };
+        var mouse = new System.Threading.Thread(() =>
+        {
+            try
+            {
+                if (wheel) sent = InputSimulation.SendMouse(new MOUSEDATA { dwFlags = WM.WM_MOUSEWHEEL });
+                else InputSimulation.MoveMouseRelative(0, 0);
+            }
+            catch (Exception error) { mouseError = error; }
+        }) { IsBackground = true };
+        bool completedBeforeRelease = false;
+        try
+        {
+            Field("inputPipe").SetValue(null, null); Field("inputAgent").SetValue(null, null); Field("brokerOwnsInput").SetValue(null, true);
+            Common.MainFormVisible = false;
+            NativeMethods.INPUT64 input = default; input.mi.dwFlags = (int)NativeMethods.MOUSEEVENTF.MOVE;
+            Assert.AreEqual(1u, (uint)typeof(InputSimulation).GetMethod("SendInputEx", Private)!.Invoke(null, [input])!,
+                "This canary requires successful zero-delta native movement on the current desktop.");
+            owner.Start();
+            Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(3)), "The state-changing input did not acquire its actual simulation lock.");
+            mouse.Start();
+            completedBeforeRelease = mouse.Join(TimeSpan.FromSeconds(1));
+        }
+        finally
+        {
+            release.Set();
+            try
+            {
+                if ((owner.ThreadState & System.Threading.ThreadState.Unstarted) == 0) Assert.IsTrue(owner.Join(TimeSpan.FromSeconds(3)));
+                if ((mouse.ThreadState & System.Threading.ThreadState.Unstarted) == 0) Assert.IsTrue(mouse.Join(TimeSpan.FromSeconds(3)));
+                Assert.IsTrue(PrivilegedInput.HasHeldInput, "Independent movement must not release or forget the broker-owned input.");
+            }
+            finally
+            {
+                Field("inputPipe").SetValue(null, oldPipe); Field("inputAgent").SetValue(null, oldAgent); Field("brokerOwnsInput").SetValue(null, oldOwns);
+                Common.MainFormVisible = oldVisible; Common.PaintCount = oldPaint;
+            }
+        }
+        Assert.IsNull(ownerError); Assert.IsNull(mouseError);
+        Assert.AreEqual(!wheel, completedBeforeRelease, wheel
+            ? "Wheel/button state changes must remain serialized with their input owner."
+            : "Public zero-delta MOVE must not wait for an unrelated key/button broker exchange.");
+        if (wheel) Assert.AreEqual(0u, sent, "An unavailable held-input owner must still block the wheel packet's native injection.");
+    }
+
     [TestMethod]
     public void BrokerOwnedDownDoesNotMakeIndependentMovementWaitForItsReply()
     {

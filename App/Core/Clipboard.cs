@@ -11,6 +11,7 @@ using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -84,8 +85,12 @@ internal static class Clipboard
     internal static void OnMachineSwitched()
     {
         HasSwitchedMachineSinceLastCopy = true;
-        if (Common.DesMachineID != Common.MachineID)
-            Common.SendPackage(Common.DesMachineID, PackageType.MachineSwitched);
+        ID target = Common.DesMachineID;
+        if (target != Common.MachineID)
+            _ = Task.Run(() =>
+            {
+                if (Common.DesMachineID == target) Common.SendPackage(target, PackageType.MachineSwitched);
+            });
         else if (clipboardCopiedTime != 0)
         {
             clipboardCopiedTime = 0;
@@ -122,10 +127,6 @@ internal static class Clipboard
 
         try
         {
-            IsClipboardDataImage = false;
-            LastClipboardData = null;
-            LastDragDropFile = null;
-
             string stringData = null;
             byte[] byteData = null;
 
@@ -138,19 +139,18 @@ internal static class Clipboard
                 stringData = data.GetString();
             }
 
+            if (!isFilePath && !HasSwitchedMachineSinceLastCopy
+                && (stringData != null && lastClipboardObject is string previousText && IsSameClipboardText(previousText, stringData)
+                    || byteData != null && lastClipboardObject is byte[] previousImage && previousImage.SequenceEqual(byteData)))
+                return false;
+
+            IsClipboardDataImage = false;
+            LastClipboardData = null;
+            LastDragDropFile = null;
+            HasSwitchedMachineSinceLastCopy = false;
+
             if (stringData != null)
             {
-                if (!HasSwitchedMachineSinceLastCopy)
-                {
-                    if (lastClipboardObject is string lastStringData && IsSameClipboardText(lastStringData, stringData))
-                    {
-                        Logger.LogDebug("CheckClipboardEx: Same string data.");
-                        return false;
-                    }
-                }
-
-                HasSwitchedMachineSinceLastCopy = false;
-
                 if (isFilePath)
                 {
                     Logger.LogDebug("Clipboard contains FileDropList");
@@ -213,25 +213,14 @@ internal static class Clipboard
                     Logger.LogDebug("Plain/Zip = " + texts.Length.ToString(CultureInfo.CurrentCulture) + "/" +
                         ms.Length.ToString(CultureInfo.CurrentCulture));
 
-                    LastClipboardData = ms.GetBuffer();
+                    LastClipboardData = ms.ToArray();
                 }
             }
             else if (byteData != null)
             {
-                if (!HasSwitchedMachineSinceLastCopy)
-                {
-                    if (lastClipboardObject is byte[] lastByteData && Enumerable.SequenceEqual(lastByteData, byteData))
-                    {
-                        Logger.LogDebug("CheckClipboardEx: Same byte[] data.");
-                        return false;
-                    }
-                }
-
-                HasSwitchedMachineSinceLastCopy = false;
-
                 Logger.LogDebug("Clipboard contains image");
                 IsClipboardDataImage = true;
-                LastClipboardData = byteData;
+                LastClipboardData = byteData = byteData.ToArray();
             }
             else
             {
@@ -240,7 +229,7 @@ internal static class Clipboard
             }
 
             clipboardCopiedTime = 0;
-            lastClipboardObject = data;
+            lastClipboardObject = isFilePath ? null : (object)stringData ?? byteData;
 
             if (LastClipboardData != null && LastClipboardData.Length > 0)
             {
@@ -268,12 +257,14 @@ internal static class Clipboard
 
     private static void SendClipboardDataUsingTCP(byte[] bytes, bool image)
     {
-        if (Common.Sk == null)
-        {
-            return;
-        }
-
-        new Task(() =>
+        var transport = Common.Sk;
+        if (transport == null) return;
+        (string Name, uint Id, IPAddress Address)[] peers;
+        lock (transport.TcpSocketsLock)
+            peers = transport.TcpSockets.Where(peer => peer.Status == SocketStatus.Connected && peer.BackingSocket != null
+                    && MachineStuff.InMachineMatrix(peer.MachineName))
+                .DistinctBy(peer => peer.MachineId).Select(peer => (peer.MachineName, peer.MachineId, peer.Address)).ToArray();
+        foreach (var peer in peers) _ = Task.Run(() =>
         {
             // SuppressFlow fixes an issue on service mode, where the helper process can't get enough permissions to be started again.
             // More details can be found on: https://github.com/microsoft/PowerToys/pull/36892
@@ -282,43 +273,21 @@ internal static class Clipboard
             System.Threading.Thread thread = Thread.CurrentThread;
             thread.Name = $"{nameof(SendClipboardDataUsingTCP)}.{thread.ManagedThreadId}";
             Thread.UpdateThreads(thread);
-            int l = bytes.Length;
-            int index = 0;
-            int len;
-            DATA package = new();
-            byte[] buf = new byte[Package.PACKAGE_SIZE_EX];
-            int dataStart = Package.PACKAGE_SIZE_EX - DATA_SIZE;
-
-            while (true)
+            try
             {
-                if ((index + DATA_SIZE) > l)
-                {
-                    len = l - index;
-                    Array.Clear(buf, 0, Package.PACKAGE_SIZE_EX);
-                }
-                else
-                {
-                    len = DATA_SIZE;
-                }
-
-                Array.Copy(bytes, index, buf, dataStart, len);
-                package.Bytes = buf;
-
-                package.Type = image ? PackageType.ClipboardImage : PackageType.ClipboardText;
-                package.Des = ID.ALL;
-                Common.SkSend(package, (uint)Common.MachineID, false);
-
-                index += DATA_SIZE;
-                if (index >= l)
-                {
-                    break;
-                }
+                if (!ReferenceEquals(Common.Sk, transport) || !ReferenceEquals(LastClipboardData, bytes)) return;
+                using var client = ConnectToRemoteClipboardSocket(peer.Name, peer.Address, transport.TcpPort);
+                string name = peer.Name;
+                bool push = true;
+                var action = ClipboardPostAction.Other;
+                if (ShakeHand(ref name, client.Client, out var output, out _, ref push, ref action)
+                    && string.Equals(name, peer.Name, StringComparison.OrdinalIgnoreCase) && Common.IsConnectedTo((ID)peer.Id)
+                    && MachineStuff.InMachineMatrix(peer.Name)
+                    && ReferenceEquals(Common.Sk, transport) && ReferenceEquals(LastClipboardData, bytes))
+                    SocketStuff.SendClipboardData(client.Client, output, bytes, image);
             }
-
-            package.Type = PackageType.ClipboardDataEnd;
-            package.Des = ID.ALL;
-            Common.SkSend(package, (uint)Common.MachineID, false);
-        }).Start();
+            catch (Exception error) { Logger.Log("Clipboard push failed: " + error.Message); }
+        });
     }
 
     internal static void ReceiveClipboardDataUsingTCP(DATA data, bool image, TcpSk tcp)
@@ -511,16 +480,42 @@ internal static class Clipboard
 
     internal static void ReceiveAndProcessClipboardData(string remoteMachine, Socket s, Stream enStream, Stream deStream, string postAct)
     {
-        if (!ExecuteClipboardReceive(
-                () => ReceiveAndProcessClipboardDataCore(remoteMachine, s, enStream, deStream, postAct),
-                waitMilliseconds: 3000))
+        try
         {
-            Logger.Log("Rejecting clipboard transfer because the previous transfer is still active.");
+            if (!Setting.Values.ShareClipboard) { s.Close(); return; }
+            byte[] header = new byte[TransferHeader.Size];
+            int received = deStream.ReadEx(header, 0, header.Length);
+            if (received < header.Length)
+            {
+                Logger.Log("Reading header failed: " + received.ToString(CultureInfo.CurrentCulture));
+                Common.SetToggleIcon(new int[Common.TOGGLE_ICONS_SIZE] { Common.ICON_BIG_CLIPBOARD, -1, -1, -1 });
+                s.Close();
+                return;
+            }
+            var transferHeader = TransferHeader.Parse(header);
+            if (transferHeader.IsClipboard)
+            {
+                clipboardCopiedTime = 0;
+                ReceiveAndProcessClipboardDataCore(remoteMachine, s, enStream, deStream, postAct, transferHeader);
+            }
+            else if (!ExecuteClipboardReceive(
+                () => ReceiveAndProcessClipboardDataCore(remoteMachine, s, enStream, deStream, postAct, transferHeader), 3000))
+            {
+                Logger.Log("Rejecting file transfer because the previous transfer is still active.");
+                s.Close();
+            }
+        }
+        catch (Exception error)
+        {
+            Logger.Log(error);
+            Common.SetToggleIcon(new int[Common.TOGGLE_ICONS_SIZE] { Common.ICON_BIG_CLIPBOARD, -1, Common.ICON_BIG_CLIPBOARD, -1 });
+            Common.ShowToolTip(error.Message, 1000, ToolTipIcon.Info, Setting.Values.ShowClipNetStatus);
             s.Close();
         }
     }
 
-    private static void ReceiveAndProcessClipboardDataCore(string remoteMachine, Socket s, Stream enStream, Stream deStream, string postAct)
+    private static void ReceiveAndProcessClipboardDataCore(string remoteMachine, Socket s, Stream enStream, Stream deStream,
+        string postAct, TransferHeader transferHeader)
     {
         ReceivedDestinationFile destinationFile = null;
         Stream m = null;
@@ -589,7 +584,6 @@ internal static class Clipboard
         try
         {
             if (!Setting.Values.ShareClipboard) return;
-            byte[] header = new byte[1024];
             byte[] buf = new byte[Common.NETWORK_STREAM_BUF_SIZE];
             string fileName = null;
             string tempFile = "data", savingFolder = string.Empty;
@@ -597,18 +591,6 @@ internal static class Clipboard
             int rv;
             long receivedCount = 0;
 
-            if ((rv = deStream.ReadEx(header, 0, header.Length)) < header.Length)
-            {
-                Logger.Log("Reading header failed: " + rv.ToString(CultureInfo.CurrentCulture));
-                Common.SetToggleIcon(new int[Common.TOGGLE_ICONS_SIZE]
-                {
-                    Common.ICON_BIG_CLIPBOARD,
-                    -1, -1, -1,
-                });
-                return;
-            }
-
-            var transferHeader = TransferHeader.Parse(header);
             long dataSize = transferHeader.Length;
             fileName = transferHeader.Name;
 
@@ -1115,34 +1097,30 @@ internal static class Clipboard
 
     internal static TcpClient ConnectToRemoteClipboardSocket(string remoteMachine, System.Threading.CancellationToken cancellation = default)
     {
+        var transport = Common.Sk ?? throw new ExpectedSocketException("Clipboard connection is unavailable.");
+        return ConnectToRemoteClipboardSocket(remoteMachine, Common.GetConnectedSocketIPAddressFor(remoteMachine), transport.TcpPort, cancellation);
+    }
+
+    private static TcpClient ConnectToRemoteClipboardSocket(string remoteMachine, IPAddress ip, int port,
+        System.Threading.CancellationToken cancellation = default)
+    {
         TcpClient clipboardTcpClient;
         clipboardTcpClient = new TcpClient(AddressFamily.InterNetworkV6);
         clipboardTcpClient.Client.DualMode = true;
 
         try
         {
-            SocketStuff sk = Common.Sk;
+            Common.DoSomethingInUIThread(() => Common.MainForm.ChangeIcon(Common.ICON_SMALL_CLIPBOARD));
+            Logger.LogDebug($"{nameof(ConnectToRemoteClipboardSocket)}Connecting to {remoteMachine}:{ip}:{port}...");
 
-            if (sk != null)
+            ConnectWithTimeout(token =>
             {
-                Common.DoSomethingInUIThread(() => Common.MainForm.ChangeIcon(Common.ICON_SMALL_CLIPBOARD));
+                if (ip != null) clipboardTcpClient.ConnectAsync(ip, port, token).GetAwaiter().GetResult();
+                else clipboardTcpClient.ConnectAsync(remoteMachine, port, token).GetAwaiter().GetResult();
+            }, cancellation);
 
-                System.Net.IPAddress ip = Common.GetConnectedSocketIPAddressFor(remoteMachine);
-                Logger.LogDebug($"{nameof(ConnectToRemoteClipboardSocket)}Connecting to {remoteMachine}:{ip}:{sk.TcpPort}...");
-
-                ConnectWithTimeout(token =>
-                {
-                    if (ip != null) clipboardTcpClient.ConnectAsync(ip, sk.TcpPort, token).GetAwaiter().GetResult();
-                    else clipboardTcpClient.ConnectAsync(remoteMachine, sk.TcpPort, token).GetAwaiter().GetResult();
-                }, cancellation);
-
-                Logger.LogDebug($"Connected from {clipboardTcpClient.Client.LocalEndPoint}. Getting data...");
-                return clipboardTcpClient;
-            }
-            else
-            {
-                throw new ExpectedSocketException($"{nameof(ConnectToRemoteClipboardSocket)}: No longer connected.");
-            }
+            Logger.LogDebug($"Connected from {clipboardTcpClient.Client.LocalEndPoint}. Getting data...");
+            return clipboardTcpClient;
         }
         catch
         {

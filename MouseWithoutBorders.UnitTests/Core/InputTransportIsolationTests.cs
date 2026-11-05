@@ -19,12 +19,21 @@ public sealed class InputTransportIsolationTests
     [DataRow("input")]
     [DataRow("probe")]
     [DataRow("settings")]
+    [DataRow("switch")]
     public void ABlockedPeerWriteDoesNotBlockInputToAnotherPeer(string operation)
     {
         var oldSettings = Setting.Values; var oldTransport = Common.Sk; string oldName = Common.MachineName;
         int oldId = Package.PackageID; var oldSent = Package.PackageSent;
         var matrix = typeof(MachineStuff).GetField("mcMatrix", BindingFlags.Static | BindingFlags.NonPublic)!;
         var oldMatrix = matrix.GetValue(null);
+        var pool = typeof(MachineStuff).GetField("_machinePool", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var oldPool = pool.GetValue(null);
+        var oldDestination = MachineStuff.desMachineID; string oldDestinationName = MachineStuff.DesMachineName;
+        var oldNext = MachineStuff.newDesMachineID; var oldLocation = MachineStuff.SwitchLocation;
+        long oldJump = MachineStuff.lastJump; int oldSwitchCount = Common.SwitchCount;
+        bool oldMouseDown = DragDrop.MouseDown, oldDragging = DragDrop.IsDragging, oldDropping = DragDrop.IsDropping;
+        var oldDragMachine = DragDrop.DragMachine; bool oldSwitched = Clipboard.HasSwitchedMachineSinceLastCopy;
+        bool oldSwitchSignal = operation == "switch" && Common.EvSwitch.WaitOne(0);
         string folder = Path.Combine(Path.GetTempPath(), "mwb-transport-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
         MouseWithoutBorders.Class.Settings? settings = null;
@@ -41,6 +50,14 @@ public sealed class InputTransportIsolationTests
             PortableSettingsStore.Write(path, JsonSerializer.Serialize(document, SettingsUtils.SerializerOptions));
             settings = new MouseWithoutBorders.Class.Settings(new SettingsUtils(path), false);
             Setting.Values = settings; Common.MachineName = "A"; matrix.SetValue(null, null);
+            if (operation == "switch")
+            {
+                var machines = new MachinePool(); pool.SetValue(null, machines);
+                foreach (var (name, id) in new[] { ("A", 101), ("B", 202), ("C", 303) })
+                { machines.LearnMachine(name); machines.TryUpdateMachineID(name, (ID)id, true); }
+                Common.DesMachineID = (ID)202; MachineStuff.SwitchLocation = new MouseLocation();
+                DragDrop.MouseDown = DragDrop.IsDragging = DragDrop.IsDropping = false; DragDrop.DragMachine = ID.NONE;
+            }
             using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(2);
             using var slowSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
@@ -64,19 +81,30 @@ public sealed class InputTransportIsolationTests
                 {
                     if (operation == "probe") Assert.IsTrue(Common.AtLeastOneSocketEstablished());
                     else if (operation == "settings") MachineStuff.SendMachineMatrix();
+                    else if (operation == "switch")
+                    {
+                        Assert.IsTrue(Event.PrepareToSwitchToMachine((ID)303, new System.Drawing.Point(Event.XY_BY_PIXEL + 100, Event.XY_BY_PIXEL + 100)));
+                        Common.SkSend(MousePacket(303), null, false);
+                    }
                     else Common.SkSend(MousePacket(202), null, false);
                 });
                 Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(3)), "The real transport did not reach the gated peer write.");
-                input = Task.Run(() => Common.SkSend(MousePacket(303), null, false));
+                input = operation == "switch" ? blocked : Task.Run(() => Common.SkSend(MousePacket(303), null, false));
                 independentCompleted = input.Wait(TimeSpan.FromSeconds(2));
                 if (independentCompleted)
                 {
                     fastReceiver.ReceiveTimeout = 2000;
                     byte[] frame = new byte[32];
                     using var read = new NetworkStream(fastReceiver, false);
-                    read.ReadExactly(frame);
-                    Assert.AreEqual((byte)PackageType.Mouse, frame[0]);
-                    Assert.AreEqual(303u, BitConverter.ToUInt32(frame, 12));
+                    bool sawMouse = false;
+                    for (int i = 0; i < (operation == "switch" ? 2 : 1); i++)
+                    {
+                        read.ReadExactly(frame);
+                        Assert.AreEqual(303u, BitConverter.ToUInt32(frame, 12));
+                        if (frame[0] == (byte)PackageType.Mouse) sawMouse = true;
+                        else Assert.AreEqual((byte)PackageType.MachineSwitched, frame[0]);
+                    }
+                    Assert.IsTrue(sawMouse, "The actual switch entrypoint must reach its new peer's MOVE before the previous peer finishes hiding.");
                 }
             }
             finally
@@ -84,6 +112,7 @@ public sealed class InputTransportIsolationTests
                 release.Set();
                 Assert.IsTrue(blocked == null || blocked.Wait(TimeSpan.FromSeconds(5)), "The blocked transport did not finish after release.");
                 Assert.IsTrue(input == null || input.Wait(TimeSpan.FromSeconds(5)), "Input did not finish after release.");
+                lock (slow) { } // The asynchronous old-peer hide must finish before its test socket is disposed.
             }
         }
         finally
@@ -91,6 +120,12 @@ public sealed class InputTransportIsolationTests
             settings?.SaveSettingsSynchronously();
             Setting.Values = oldSettings; Common.Sk = oldTransport; Common.MachineName = oldName;
             Package.PackageID = oldId; Package.PackageSent = oldSent; matrix.SetValue(null, oldMatrix);
+            pool.SetValue(null, oldPool); MachineStuff.desMachineID = oldDestination; MachineStuff.DesMachineName = oldDestinationName;
+            MachineStuff.newDesMachineID = oldNext; MachineStuff.SwitchLocation = oldLocation;
+            MachineStuff.lastJump = oldJump; Common.SwitchCount = oldSwitchCount;
+            DragDrop.MouseDown = oldMouseDown; DragDrop.IsDragging = oldDragging; DragDrop.IsDropping = oldDropping;
+            DragDrop.DragMachine = oldDragMachine; Clipboard.HasSwitchedMachineSinceLastCopy = oldSwitched;
+            if (operation == "switch") { Common.EvSwitch.Reset(); if (oldSwitchSignal) Common.EvSwitch.Set(); }
             Directory.Delete(folder, true);
         }
         Assert.IsTrue(independentCompleted, "Input to C waited for unrelated peer B's network write.");
@@ -101,6 +136,53 @@ public sealed class InputTransportIsolationTests
         Type = PackageType.Mouse, Src = (ID)101, Des = (ID)peer,
         Md = new MOUSEDATA { X = 1000, Y = 2000, dwFlags = WM.WM_MOUSEMOVE },
     };
+
+    [DataTestMethod]
+    [DataRow(false, true, false)]
+    [DataRow(true, true, false)]
+    [DataRow(false, false, false)]
+    [DataRow(true, false, false)]
+    [DataRow(false, false, true)]
+    [DataRow(true, false, true)]
+    public void ADelayedHideIsCheckedForEachRecipientInsideItsFrameOwner(bool broadcast, bool currentRecipient, bool allActive)
+    {
+        var oldDestination = MachineStuff.desMachineID; var oldSent = Package.PackageSent;
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(1);
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.Connect(listener.LocalEndPoint!); using var receiver = listener.Accept();
+        using var wire = new MemoryStream();
+        uint peer = currentRecipient ? 202u : 303u;
+        using var tcp = new TcpSk(true, socket, SocketStatus.Connected, "B") { MachineId = peer };
+        typeof(TcpSk).GetField("encryptedStream", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(tcp, wire);
+        var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff));
+        Exception? failure = null;
+        var writer = new System.Threading.Thread(() =>
+        {
+            try { transport.TcpSend(tcp, new DATA { Type = PackageType.HideMouse, Src = (ID)101, Des = broadcast ? ID.ALL : (ID)peer }); }
+            catch (Exception error) { failure = error; }
+        }) { IsBackground = true };
+        try
+        {
+            MachineStuff.desMachineID = (ID)101;
+            lock (tcp)
+            {
+                writer.Start();
+                Assert.IsTrue(SpinWait.SpinUntil(() => (writer.ThreadState & System.Threading.ThreadState.WaitSleepJoin) != 0, TimeSpan.FromSeconds(3)),
+                    "The delayed hide did not reach the actual TCP frame lock.");
+                MachineStuff.desMachineID = allActive ? ID.ALL : (ID)202;
+            }
+            Assert.IsTrue(writer.Join(TimeSpan.FromSeconds(3)));
+            Assert.IsNull(failure);
+            Assert.AreEqual(currentRecipient || allActive ? 0L : 32L, wire.Length,
+                "A late direct or ALL hide must skip only the recipient that is active when its frame can actually be written.");
+        }
+        finally
+        {
+            if ((writer.ThreadState & System.Threading.ThreadState.Unstarted) == 0) writer.Join(TimeSpan.FromSeconds(3));
+            MachineStuff.desMachineID = oldDestination; Package.PackageSent = oldSent;
+        }
+    }
 
     [TestMethod]
     public void ASharedSettingsSenderWaitingOnItsPeerCannotCaptureANewOwnersGroup()
