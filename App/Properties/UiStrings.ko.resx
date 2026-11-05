@@ -1,0 +1,873 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Machine Setup" xml:space="preserve">
+    <value>PC 연결</value>
+  </data>
+  <data name="Other Options" xml:space="preserve">
+    <value>옵션</value>
+  </data>
+  <data name="IP Mappings" xml:space="preserve">
+    <value>IP 주소</value>
+  </data>
+  <data name="Installation" xml:space="preserve">
+    <value>설치</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>설정</value>
+  </data>
+  <data name=" - Settings" xml:space="preserve">
+    <value> - 설정</value>
+  </data>
+  <data name="&amp;Apply" xml:space="preserve">
+    <value>적용(&amp;A)</value>
+  </data>
+  <data name="&amp;Close" xml:space="preserve">
+    <value>닫기(&amp;C)</value>
+  </data>
+  <data name="Apply" xml:space="preserve">
+    <value>적용</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>닫기</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>취소</value>
+  </data>
+  <data name="Connect" xml:space="preserve">
+    <value>연결</value>
+  </data>
+  <data name="New &amp;Key" xml:space="preserve">
+    <value>새 키(&amp;K)</value>
+  </data>
+  <data name="New Key" xml:space="preserve">
+    <value>새 키</value>
+  </data>
+  <data name="Security Key:" xml:space="preserve">
+    <value>보안 키:</value>
+  </data>
+  <data name="&amp;Show text" xml:space="preserve">
+    <value>키 표시(&amp;S)</value>
+  </data>
+  <data name=" &amp;Shared encryption key" xml:space="preserve">
+    <value> 공유 암호화 키</value>
+  </data>
+  <data name=" Computer &amp;Matrix — Drag tiles to match the physical layout. Check an empty tile, then enter that computer's Windows name. " xml:space="preserve">
+    <value> PC 배치 — 화면 위치에 맞게 끌어 놓으세요. 빈 칸을 선택해 해당 PC의 Windows 이름을 입력하세요. </value>
+  </data>
+  <data name="Two rows" xml:space="preserve">
+    <value>두 줄로 배치</value>
+  </data>
+  <data name="Two &amp;Row" xml:space="preserve">
+    <value>두 줄로 배치(&amp;R)</value>
+  </data>
+  <data name="&amp;Help / Project page" xml:space="preserve">
+    <value>도움말 / 프로젝트(&amp;H)</value>
+  </data>
+  <data name="Mini Log" xml:space="preserve">
+    <value>간단 로그</value>
+  </data>
+  <data name="Switch computers at screen edge" xml:space="preserve">
+    <value>화면 가장자리에서 PC 전환</value>
+  </data>
+  <data name="Activation:" xml:space="preserve">
+    <value>전환 조건:</value>
+  </data>
+  <data name="Set keys…" xml:space="preserve">
+    <value>키 지정…</value>
+  </data>
+  <data name="Screen-edge activation keys" xml:space="preserve">
+    <value>화면 전환 키 조합</value>
+  </data>
+  <data name="Hold every listed key to switch. Examples: Ctrl+Alt+F2, RControlKey, LShiftKey+Space, Win+F4." xml:space="preserve">
+    <value>지정한 키를 모두 누른 상태에서 화면을 전환합니다.
+예: Ctrl+Alt+F2, RControlKey, LShiftKey+Space, Win+F4.</value>
+  </data>
+  <data name="Use key names separated by +, for example Ctrl+Alt+F2." xml:space="preserve">
+    <value>키 이름을 +로 구분해 입력하세요. 예: Ctrl+Alt+F2.</value>
+  </data>
+  <data name="Always" xml:space="preserve">
+    <value>항상</value>
+  </data>
+  <data name="Hold Ctrl" xml:space="preserve">
+    <value>Ctrl을 누를 때</value>
+  </data>
+  <data name="Hold Shift" xml:space="preserve">
+    <value>Shift를 누를 때</value>
+  </data>
+  <data name="Hold Alt" xml:space="preserve">
+    <value>Alt를 누를 때</value>
+  </data>
+  <data name="Hold Win" xml:space="preserve">
+    <value>Win을 누를 때</value>
+  </data>
+  <data name="Custom keys" xml:space="preserve">
+    <value>사용자 지정 키</value>
+  </data>
+  <data name="Mouse and screen switching" xml:space="preserve">
+    <value>마우스와 화면 전환</value>
+  </data>
+  <data name="Show a fallback cursor" xml:space="preserve">
+    <value>커서가 안 보이면 대체 커서 표시</value>
+  </data>
+  <data name="Use relative mouse movement" xml:space="preserve">
+    <value>상대 마우스 이동 사용</value>
+  </data>
+  <data name="Block switching at screen corners" xml:space="preserve">
+    <value>화면 모서리에서 전환 차단</value>
+  </data>
+  <data name="&amp;Draw mouse cursor" xml:space="preserve">
+    <value>마우스 커서 표시(&amp;D)</value>
+  </data>
+  <data name="&amp;Move mouse relatively" xml:space="preserve">
+    <value>상대 마우스 이동(&amp;M)</value>
+  </data>
+  <data name="&amp;Block mouse at screen corners" xml:space="preserve">
+    <value>화면 모서리에서 전환 차단(&amp;B)</value>
+  </data>
+  <data name="&amp;Wrap Mouse" xml:space="preserve">
+    <value>마우스 순환(&amp;W)</value>
+  </data>
+  <data name="&amp;Block Screen Saver on other machines" xml:space="preserve">
+    <value>다른 PC의 화면 보호기 차단(&amp;B)</value>
+  </data>
+  <data name="&amp;Share Clipboard" xml:space="preserve">
+    <value>클립보드 공유(&amp;S)</value>
+  </data>
+  <data name="&amp;Transfer file" xml:space="preserve">
+    <value>파일 전송(&amp;T)</value>
+  </data>
+  <data name="Allow file transfers" xml:space="preserve">
+    <value>파일 전송 허용</value>
+  </data>
+  <data name="Clipboard and file transfers" xml:space="preserve">
+    <value>클립보드와 파일 전송</value>
+  </data>
+  <data name="Receiving folder on this PC" xml:space="preserve">
+    <value>이 PC의 수신 폴더</value>
+  </data>
+  <data name="Choose folder…" xml:space="preserve">
+    <value>폴더 선택…</value>
+  </data>
+  <data name="Use default" xml:space="preserve">
+    <value>기본값 사용</value>
+  </data>
+  <data name="Automatically close finished transfers" xml:space="preserve">
+    <value>전송이 끝나면 창 자동으로 닫기</value>
+  </data>
+  <data name="Enable keyboard shortcuts" xml:space="preserve">
+    <value>단축키 사용</value>
+  </data>
+  <data name="Switch PCs, Ctrl+Alt:" xml:space="preserve">
+    <value>PC 전환, Ctrl+Alt:</value>
+  </data>
+  <data name="Lock PCs, Ctrl+Alt:" xml:space="preserve">
+    <value>PC 잠금, Ctrl+Alt:</value>
+  </data>
+  <data name="All PCs, Ctrl+Alt:" xml:space="preserve">
+    <value>모든 PC 조작, Ctrl+Alt:</value>
+  </data>
+  <data name="Reconnect, Ctrl+Alt:" xml:space="preserve">
+    <value>다시 연결, Ctrl+Alt:</value>
+  </data>
+  <data name="Toggle edge switching, Ctrl+Alt:" xml:space="preserve">
+    <value>가장자리 전환 켜기/끄기, Ctrl+Alt:</value>
+  </data>
+  <data name="&amp;None" xml:space="preserve">
+    <value>없음(&amp;N)</value>
+  </data>
+  <data name="None" xml:space="preserve">
+    <value>없음</value>
+  </data>
+  <data name="On" xml:space="preserve">
+    <value>켬</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>끔</value>
+  </data>
+  <data name="Default: " xml:space="preserve">
+    <value>기본값: </value>
+  </data>
+  <data name="Connection troubleshooting" xml:space="preserve">
+    <value>연결 문제 해결</value>
+  </data>
+  <data name="Check computer names against DNS" xml:space="preserve">
+    <value>DNS로 PC 이름 확인</value>
+  </data>
+  <data name="Machine name to IP address mappings" xml:space="preserve">
+    <value>PC 이름과 IP 주소 연결</value>
+  </data>
+  <data name="These mappings are set by your Windows administrator and cannot be edited here." xml:space="preserve">
+    <value>Windows 관리자가 지정한 항목이므로 여기에서 수정할 수 없습니다.</value>
+  </data>
+  <data name="Same subnet only" xml:space="preserve">
+    <value>같은 서브넷에만 연결</value>
+  </data>
+  <data name="Show clipboard/&amp;network status messages" xml:space="preserve">
+    <value>클립보드·네트워크 상태 알림(&amp;N)</value>
+  </data>
+  <data name="Find PCs…" xml:space="preserve">
+    <value>PC 찾기…</value>
+  </data>
+  <data name="Nearby computers" xml:space="preserve">
+    <value>주변 PC</value>
+  </data>
+  <data name="Network discovery is unavailable. You can still enter a computer name in Machine Setup." xml:space="preserve">
+    <value>주변 PC 검색을 사용할 수 없습니다. ‘PC 연결’에서 PC 이름을 직접 입력해 연결할 수 있습니다.</value>
+  </data>
+  <data name="The four computer slots are full. Remove an unused computer first." xml:space="preserve">
+    <value>PC 네 칸이 모두 사용 중입니다. 사용하지 않는 PC를 먼저 제거하세요.</value>
+  </data>
+  <data name="This computer" xml:space="preserve">
+    <value>이 PC</value>
+  </data>
+  <data name="Not configured" xml:space="preserve">
+    <value>설정 안 됨</value>
+  </data>
+  <data name="● Reconnect required" xml:space="preserve">
+    <value>● 다시 연결 필요</value>
+  </data>
+  <data name="● Connected" xml:space="preserve">
+    <value>● 연결됨</value>
+  </data>
+  <data name="Connecting…" xml:space="preserve">
+    <value>연결 중…</value>
+  </data>
+  <data name="● Timed out" xml:space="preserve">
+    <value>● 연결 시간 초과</value>
+  </data>
+  <data name="● Connection" xml:space="preserve">
+    <value>● 연결</value>
+  </data>
+  <data name="Disconnected" xml:space="preserve">
+    <value>연결 끊김</value>
+  </data>
+  <data name="Waiting for" xml:space="preserve">
+    <value>연결</value>
+  </data>
+  <data name="connection" xml:space="preserve">
+    <value>대기 중</value>
+  </data>
+  <data name="Waiting for connection" xml:space="preserve">
+    <value>연결 대기 중</value>
+  </data>
+  <data name="Waiting…" xml:space="preserve">
+    <value>대기 중…</value>
+  </data>
+  <data name="Connected" xml:space="preserve">
+    <value>연결됨</value>
+  </data>
+  <data name="Move the pointer through a configured screen edge to switch computers." xml:space="preserve">
+    <value>지정한 화면 가장자리 밖으로 포인터를 움직이면 다른 PC로 전환합니다.</value>
+  </data>
+  <data name="Switch at a screen edge immediately, or only while holding Ctrl or Shift." xml:space="preserve">
+    <value>화면 가장자리에서 바로 전환하거나 지정한 키를 누른 동안에만 전환합니다.</value>
+  </data>
+  <data name="Wrap across the outside edges of your computer layout." xml:space="preserve">
+    <value>PC 배치의 바깥 가장자리를 지나면 반대편 PC로 이동합니다.</value>
+  </data>
+  <data name="Hide the pointer on this PC while controlling another." xml:space="preserve">
+    <value>다른 PC를 조작하는 동안 이 PC의 포인터를 숨깁니다.</value>
+  </data>
+  <data name="Draw a replacement pointer when Windows reports that its cursor is invisible. Turn off if it conflicts with intentional cursor hiding." xml:space="preserve">
+    <value>Windows 커서가 보이지 않을 때 대체 포인터를 표시합니다. 앱의 의도적인 커서 숨김과 충돌하면 끄세요.</value>
+  </data>
+  <data name="Try this if pointer movement feels uneven between different screens." xml:space="preserve">
+    <value>화면 사이를 이동할 때 포인터 움직임이 일정하지 않으면 사용해 보세요.</value>
+  </data>
+  <data name="Reduce accidental switches near a corner." xml:space="preserve">
+    <value>화면 모서리에서 실수로 다른 PC로 전환되는 것을 줄입니다.</value>
+  </data>
+  <data name="Keep other PCs' screen savers from starting while you are actively using MWB." xml:space="preserve">
+    <value>MWB를 사용하는 동안 다른 PC의 화면 보호기가 시작되지 않게 합니다.</value>
+  </data>
+  <data name="Share copied text and images between PCs." xml:space="preserve">
+    <value>복사한 텍스트와 이미지를 PC 사이에서 공유합니다.</value>
+  </data>
+  <data name="Drag/drop files independently of clipboard sharing. Copy/paste files also requires Share Clipboard. Administrator policies still apply." xml:space="preserve">
+    <value>파일 끌어 놓기는 클립보드 공유를 꺼도 사용할 수 있습니다. 파일 복사·붙여넣기는 클립보드 공유도 켜야 합니다. 관리자 정책의 차단은 유지됩니다.</value>
+  </data>
+  <data name="Used for new drag/drop transfers when you aren't dropping into an Explorer folder. Existing transfers keep their destination.&#10;&#10;Default: Desktop \ MouseWithoutBorders." xml:space="preserve">
+    <value>파일 탐색기 폴더 밖에 끌어 놓은 새 파일을 받는 위치입니다. 진행 중인 전송의 수신 위치는 바뀌지 않습니다.
+
+기본값: 바탕 화면 \ MouseWithoutBorders.</value>
+  </data>
+  <data name="Close this PC's completed or cancelled list after cleanup. Errors stay visible." xml:space="preserve">
+    <value>정리가 끝나면 이 PC의 완료·취소된 전송 목록을 닫습니다. 오류가 있는 전송은 계속 표시합니다.</value>
+  </data>
+  <data name="Assignments below are preserved while shortcuts are disabled." xml:space="preserve">
+    <value>단축키를 꺼도 아래의 키 지정은 유지됩니다.</value>
+  </data>
+  <data name="Master switch for every keyboard shortcut listed below. Assignments are preserved while off." xml:space="preserve">
+    <value>아래의 모든 단축키를 켜거나 끕니다. 꺼도 키 지정은 유지됩니다.</value>
+  </data>
+  <data name="Hold Ctrl+Alt and the chosen function key or number to switch directly to a PC." xml:space="preserve">
+    <value>Ctrl+Alt와 선택한 기능 키 또는 숫자를 누르면 해당 PC로 바로 전환합니다.</value>
+  </data>
+  <data name="Ask the network's name service (DNS) to check that an IP address matches the expected PC name. Use this to troubleshoot name/address mismatches. Some home networks have no matching DNS records, so enabling this check can prevent a connection." xml:space="preserve">
+    <value>DNS에 IP 주소가 해당 PC 이름과 일치하는지 확인합니다. 이름·주소 불일치를 점검할 때 사용하세요. 일부 가정용 네트워크에는 DNS 기록이 없어 이 옵션을 켜면 연결이 차단될 수 있습니다.</value>
+  </data>
+  <data name="MWB normally finds your other PCs automatically. If they already connect, you can leave this box empty.&#10;&#10;If MWB cannot find a PC, enter its exact name from Machine Setup, a space, and its local IP address. Add one PC per line.&#10;Example: OFFICE-PC 192.168.1.20&#10;&#10;An IP address is a PC's address on your network. Find it in that PC's Windows network settings (IPv4 address). If it changes, update the entry here. A router setting called a DHCP reservation can keep that address from changing." xml:space="preserve">
+    <value>다른 PC가 정상적으로 연결된다면 이 칸을 비워 두어도 됩니다.
+
+PC를 찾지 못하면 ‘PC 연결’에 표시된 정확한 PC 이름, 공백, 로컬 IP 주소를 입력하세요. PC 한 대당 한 줄을 사용합니다.
+예: OFFICE-PC 192.168.1.20
+
+IP 주소는 네트워크에서 사용하는 PC의 주소입니다. 해당 PC의 Windows 네트워크 설정에서 IPv4 주소를 확인할 수 있습니다. 주소가 바뀌면 여기에서도 수정하세요. 공유기의 DHCP 예약 기능으로 주소를 고정할 수 있습니다.</value>
+  </data>
+  <data name="Arrange the computers in two rows to match screens above and below each other." xml:space="preserve">
+    <value>위아래로 놓인 화면에 맞춰 PC를 두 줄로 배치합니다.</value>
+  </data>
+  <data name="Choose the default receiving folder on this PC" xml:space="preserve">
+    <value>이 PC의 기본 수신 폴더 선택</value>
+  </data>
+  <data name="Could not change setting" xml:space="preserve">
+    <value>설정을 변경하지 못했습니다</value>
+  </data>
+  <data name="Installed for your Windows account" xml:space="preserve">
+    <value>현재 Windows 계정에 설치됨</value>
+  </data>
+  <data name="Running as a portable copy" xml:space="preserve">
+    <value>포터블로 실행 중</value>
+  </data>
+  <data name="Choose whether MWB starts when you sign in, or uninstall this copy." xml:space="preserve">
+    <value>Windows 로그인 시 자동 실행을 설정하거나 이 설치본을 제거할 수 있습니다.</value>
+  </data>
+  <data name="Run MWB from this folder, or install it for your Windows account and keep your current settings." xml:space="preserve">
+    <value>이 폴더에서 실행하거나 현재 설정을 유지한 채 Windows 계정에 설치할 수 있습니다.</value>
+  </data>
+  <data name="Application location" xml:space="preserve">
+    <value>앱 위치</value>
+  </data>
+  <data name="Preferences" xml:space="preserve">
+    <value>환경설정</value>
+  </data>
+  <data name="Open folder" xml:space="preserve">
+    <value>폴더 열기</value>
+  </data>
+  <data name="Start with Windows" xml:space="preserve">
+    <value>Windows 로그인 시 자동 실행</value>
+  </data>
+  <data name="Start this installed copy when you sign in to Windows." xml:space="preserve">
+    <value>Windows에 로그인하면 이 설치본을 자동으로 실행합니다.</value>
+  </data>
+  <data name="Uninstall…" xml:space="preserve">
+    <value>제거…</value>
+  </data>
+  <data name="Install for me…" xml:space="preserve">
+    <value>내 계정에 설치…</value>
+  </data>
+  <data name="Your settings are saved beside MouseWithoutBorders.exe. The app does not install a Windows service, and updates are downloaded manually." xml:space="preserve">
+    <value>설정은 MouseWithoutBorders.exe 옆에 저장됩니다. Windows 서비스를 설치하지 않으며 업데이트는 직접 다운로드합니다.</value>
+  </data>
+  <data name="Uninstall this copy of Mouse Without Borders?" xml:space="preserve">
+    <value>이 Mouse Without Borders 설치본을 제거할까요?</value>
+  </data>
+  <data name="Uninstall Mouse Without Borders" xml:space="preserve">
+    <value>Mouse Without Borders 제거</value>
+  </data>
+  <data name="Delete MouseWithoutBorders.prefs.json too?&#10;&#10;Choose No to keep your computer layout, security key, and preferences for a later reinstall." xml:space="preserve">
+    <value>MouseWithoutBorders.prefs.json도 삭제할까요?
+
+나중에 다시 설치할 때 PC 배치, 보안 키, 환경설정을 유지하려면 ‘아니요’를 선택하세요.</value>
+  </data>
+  <data name="Delete preferences?" xml:space="preserve">
+    <value>환경설정도 삭제할까요?</value>
+  </data>
+  <data name="Install Mouse Without Borders" xml:space="preserve">
+    <value>Mouse Without Borders 설치</value>
+  </data>
+  <data name="Welcome to Mouse Without Borders" xml:space="preserve">
+    <value>Mouse Without Borders 시작하기</value>
+  </data>
+  <data name="Install this portable copy" xml:space="preserve">
+    <value>이 포터블 앱 설치</value>
+  </data>
+  <data name="How would you like to run it?" xml:space="preserve">
+    <value>실행 방법을 선택하세요</value>
+  </data>
+  <data name="Choose where to keep the installed copy. Your existing security key, computer layout, and options will move with it." xml:space="preserve">
+    <value>설치 위치를 선택하세요. 기존 보안 키, PC 배치, 옵션도 함께 옮깁니다.</value>
+  </data>
+  <data name="Install a personal copy for everyday use, or run this EXE portably from its current folder. Either way, all settings stay beside the EXE." xml:space="preserve">
+    <value>자주 사용할 앱을 내 계정에 설치하거나 현재 폴더에서 포터블로 실행할 수 있습니다. 어느 쪽이든 설정은 실행 파일 옆에 저장됩니다.</value>
+  </data>
+  <data name="This computer: " xml:space="preserve">
+    <value>이 PC: </value>
+  </data>
+  <data name="Install options (used only with Install for me)" xml:space="preserve">
+    <value>설치 옵션 (‘내 계정에 설치’ 선택 시 적용)</value>
+  </data>
+  <data name="Install location" xml:space="preserve">
+    <value>설치 위치</value>
+  </data>
+  <data name="Browse…" xml:space="preserve">
+    <value>찾아보기…</value>
+  </data>
+  <data name="Start Mouse Without Borders when I sign in to Windows" xml:space="preserve">
+    <value>Windows 로그인 시 Mouse Without Borders 자동 실행</value>
+  </data>
+  <data name="Create a desktop shortcut" xml:space="preserve">
+    <value>바탕 화면 바로 가기 만들기</value>
+  </data>
+  <data name="Preferences file: " xml:space="preserve">
+    <value>환경설정 파일: </value>
+  </data>
+  <data name="The current JSON preferences will be moved after MWB closes, so the installed copy keeps your security key, computer layout, and options." xml:space="preserve">
+    <value>MWB가 닫힌 뒤 현재 JSON 환경설정을 옮겨 설치본에서도 보안 키, PC 배치, 옵션을 유지합니다.</value>
+  </data>
+  <data name="This JSON file stores your shared security key, computer layout, and options. Keep it private. Deleting it resets first-run setup." xml:space="preserve">
+    <value>이 JSON 파일에는 공유 보안 키, PC 배치, 옵션이 저장됩니다. 다른 사람에게 공개하지 마세요. 삭제하면 처음 설정부터 다시 시작합니다.</value>
+  </data>
+  <data name="Install for me" xml:space="preserve">
+    <value>내 계정에 설치</value>
+  </data>
+  <data name="Run portable here" xml:space="preserve">
+    <value>이 폴더에서 실행</value>
+  </data>
+  <data name="Current copy: beside this portable EXE.&#13;&#10;After installation: moved into the install folder shown above." xml:space="preserve">
+    <value>현재 위치: 포터블 실행 파일 옆
+설치 후: 위에 지정한 설치 폴더로 이동</value>
+  </data>
+  <data name="Install for me: saved in the install folder shown above.&#13;&#10;Run portable here: saved beside this EXE in its current folder." xml:space="preserve">
+    <value>내 계정에 설치: 위에 지정한 설치 폴더에 저장
+이 폴더에서 실행: 현재 실행 파일 옆에 저장</value>
+  </data>
+  <data name="Choose a writable folder for Mouse Without Borders" xml:space="preserve">
+    <value>Mouse Without Borders를 저장할 쓰기 가능한 폴더 선택</value>
+  </data>
+  <data name="Choose an install folder first." xml:space="preserve">
+    <value>설치 폴더를 먼저 선택하세요.</value>
+  </data>
+  <data name="Recover Mouse Without Borders preferences" xml:space="preserve">
+    <value>Mouse Without Borders 환경설정 복구</value>
+  </data>
+  <data name="Preferences could not be loaded" xml:space="preserve">
+    <value>환경설정을 불러오지 못했습니다</value>
+  </data>
+  <data name="Setup could not continue" xml:space="preserve">
+    <value>설정을 계속하지 못했습니다</value>
+  </data>
+  <data name="File transfers — Mouse Without Borders" xml:space="preserve">
+    <value>파일 전송 — Mouse Without Borders</value>
+  </data>
+  <data name="MWB transfers" xml:space="preserve">
+    <value>MWB 파일 전송</value>
+  </data>
+  <data name="Previous" xml:space="preserve">
+    <value>이전</value>
+  </data>
+  <data name="Next" xml:space="preserve">
+    <value>다음</value>
+  </data>
+  <data name="Previous 100" xml:space="preserve">
+    <value>이전 100개</value>
+  </data>
+  <data name="Next 100" xml:space="preserve">
+    <value>다음 100개</value>
+  </data>
+  <data name="Cancel all" xml:space="preserve">
+    <value>모두 취소</value>
+  </data>
+  <data name="Pause all" xml:space="preserve">
+    <value>모두 일시정지</value>
+  </data>
+  <data name="Clear finished" xml:space="preserve">
+    <value>완료 항목 지우기</value>
+  </data>
+  <data name="Pause" xml:space="preserve">
+    <value>일시정지</value>
+  </data>
+  <data name="Resume" xml:space="preserve">
+    <value>계속 전송</value>
+  </data>
+  <data name="Retry" xml:space="preserve">
+    <value>다시 시도</value>
+  </data>
+  <data name="File" xml:space="preserve">
+    <value>파일</value>
+  </data>
+  <data name="Status" xml:space="preserve">
+    <value>상태</value>
+  </data>
+  <data name="Cancel unfinished transfers and close?&#10;&#10;Completed files will be kept. Temporary data on an offline PC will be cleaned up when it reconnects." xml:space="preserve">
+    <value>진행 중인 전송을 취소하고 닫을까요?
+
+완료된 파일은 유지됩니다. 연결이 끊긴 PC의 임시 데이터는 다시 연결될 때 정리합니다.</value>
+  </data>
+  <data name="Cancelling and cleaning up…" xml:space="preserve">
+    <value>취소하고 정리하는 중…</value>
+  </data>
+  <data name="Could not cancel transfers" xml:space="preserve">
+    <value>전송을 취소하지 못했습니다</value>
+  </data>
+  <data name="Cleaning up temporary files…" xml:space="preserve">
+    <value>임시 파일 정리 중…</value>
+  </data>
+  <data name="Transfer unavailable" xml:space="preserve">
+    <value>전송을 사용할 수 없습니다</value>
+  </data>
+  <data name="Queue changed" xml:space="preserve">
+    <value>대기열이 변경되었습니다</value>
+  </data>
+  <data name="Expand or collapse folder" xml:space="preserve">
+    <value>폴더 펼치기/접기</value>
+  </data>
+  <data name="Cancel the unfinished items in this folder" xml:space="preserve">
+    <value>이 폴더의 진행 중인 항목 취소</value>
+  </data>
+  <data name="Move up" xml:space="preserve">
+    <value>위로 이동</value>
+  </data>
+  <data name="Move down" xml:space="preserve">
+    <value>아래로 이동</value>
+  </data>
+  <data name="Move up. " xml:space="preserve">
+    <value>위로 이동. </value>
+  </data>
+  <data name="Move down. " xml:space="preserve">
+    <value>아래로 이동. </value>
+  </data>
+  <data name="Completed" xml:space="preserve">
+    <value>완료</value>
+  </data>
+  <data name="Preparing…" xml:space="preserve">
+    <value>준비 중…</value>
+  </data>
+  <data name="Preparing" xml:space="preserve">
+    <value>준비 중</value>
+  </data>
+  <data name="Transferring" xml:space="preserve">
+    <value>전송 중</value>
+  </data>
+  <data name="Paused" xml:space="preserve">
+    <value>일시정지</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>오류</value>
+  </data>
+  <data name="Skipped" xml:space="preserve">
+    <value>건너뜀</value>
+  </data>
+  <data name="Cancelled" xml:space="preserve">
+    <value>취소됨</value>
+  </data>
+  <data name="Queued" xml:space="preserve">
+    <value>대기 중</value>
+  </data>
+  <data name="Verifying" xml:space="preserve">
+    <value>검증 중</value>
+  </data>
+  <data name="Checking source" xml:space="preserve">
+    <value>원본 확인 중</value>
+  </data>
+  <data name="Copying" xml:space="preserve">
+    <value>복사 중</value>
+  </data>
+  <data name="Folder" xml:space="preserve">
+    <value>폴더</value>
+  </data>
+  <data name="ETA unavailable" xml:space="preserve">
+    <value>남은 시간 계산 불가</value>
+  </data>
+  <data name="Finishing / verifying" xml:space="preserve">
+    <value>마무리 / 검증 중</value>
+  </data>
+  <data name="Estimating time…" xml:space="preserve">
+    <value>남은 시간 계산 중…</value>
+  </data>
+  <data name="Finished · some cancelled" xml:space="preserve">
+    <value>종료 · 일부 취소됨</value>
+  </data>
+  <data name="Cleaning up…" xml:space="preserve">
+    <value>정리 중…</value>
+  </data>
+  <data name="Confirming cancellation with other PC…" xml:space="preserve">
+    <value>다른 PC에서 취소 확인 중…</value>
+  </data>
+  <data name="Confirming cancellation…" xml:space="preserve">
+    <value>취소 확인 중…</value>
+  </data>
+  <data name="Updating other PC…" xml:space="preserve">
+    <value>다른 PC에 변경사항 전달 중…</value>
+  </data>
+  <data name="Removing temporary data…" xml:space="preserve">
+    <value>임시 데이터 삭제 중…</value>
+  </data>
+  <data name=" · Completed" xml:space="preserve">
+    <value> · 완료</value>
+  </data>
+  <data name=" · ETA unavailable" xml:space="preserve">
+    <value> · 남은 시간 계산 불가</value>
+  </data>
+  <data name=" · Finishing / verifying" xml:space="preserve">
+    <value> · 마무리 / 검증 중</value>
+  </data>
+  <data name=" · Estimating time…" xml:space="preserve">
+    <value> · 남은 시간 계산 중…</value>
+  </data>
+  <data name=" — Preparing…" xml:space="preserve">
+    <value> — 준비 중…</value>
+  </data>
+  <data name=" — Completed" xml:space="preserve">
+    <value> — 완료</value>
+  </data>
+  <data name=" — Paused" xml:space="preserve">
+    <value> — 일시정지</value>
+  </data>
+  <data name=" · Confirming cancellation with other PC…" xml:space="preserve">
+    <value> · 다른 PC에서 취소 확인 중…</value>
+  </data>
+  <data name=" · Confirming cancellation…" xml:space="preserve">
+    <value> · 취소 확인 중…</value>
+  </data>
+  <data name=" · Updating other PC…" xml:space="preserve">
+    <value> · 다른 PC에 변경사항 전달 중…</value>
+  </data>
+  <data name=" · Folder" xml:space="preserve">
+    <value> · 폴더</value>
+  </data>
+  <data name="&#10;Time remaining is an estimate based on current copying speed; verification can take longer." xml:space="preserve">
+    <value>
+남은 시간은 현재 복사 속도로 계산한 예상치입니다. 파일 검증에는 시간이 더 걸릴 수 있습니다.</value>
+  </data>
+  <data name="The transfer window could not be opened; the transfer was cancelled." xml:space="preserve">
+    <value>전송 창을 열지 못해 전송을 취소했습니다.</value>
+  </data>
+  <data name="Move remaining files. Files currently copying will finish." xml:space="preserve">
+    <value>남은 파일의 순서를 바꿉니다. 현재 복사 중인 파일은 끝까지 전송합니다.</value>
+  </data>
+  <data name="Move this file in the queue. Paused files stay paused." xml:space="preserve">
+    <value>대기열에서 이 파일의 순서를 바꿉니다. 일시정지한 파일은 그대로 유지됩니다.</value>
+  </data>
+  <data name="Waiting for the sender's queue. Use RC13 or newer on both PCs." xml:space="preserve">
+    <value>보내는 PC의 대기열을 기다리는 중입니다. 두 PC 모두 RC13 이상을 사용하세요.</value>
+  </data>
+  <data name="Pause this file before moving it. Other files already copying will finish." xml:space="preserve">
+    <value>이 파일을 일시정지한 뒤 순서를 바꾸세요. 이미 복사 중인 다른 파일은 끝까지 전송합니다.</value>
+  </data>
+  <data name="Reconnect to change this sender's queue." xml:space="preserve">
+    <value>보내는 PC의 대기열을 바꾸려면 다시 연결하세요.</value>
+  </data>
+  <data name="Enter a computer name or clear its checkbox before applying the layout." xml:space="preserve">
+    <value>PC 이름을 입력하거나 해당 PC의 선택을 해제한 뒤 배치를 적용하세요.</value>
+  </data>
+  <data name="This computer can appear only once in the layout." xml:space="preserve">
+    <value>배치에는 이 PC를 한 번만 추가할 수 있습니다.</value>
+  </data>
+  <data name="Check computer names" xml:space="preserve">
+    <value>PC 이름 확인</value>
+  </data>
+  <data name="Save changes and reconnect to the machines in the matrix." xml:space="preserve">
+    <value>변경사항을 저장하고 배치에 있는 PC에 다시 연결합니다.</value>
+  </data>
+  <data name="Data sent/received is encrypted/decrypted using this key." xml:space="preserve">
+    <value>보내고 받는 데이터는 이 키로 암호화·복호화합니다.</value>
+  </data>
+  <data name="Drag to match machine physical layout. Check the checkbox to enter machine name." xml:space="preserve">
+    <value>실제 화면 위치에 맞게 끌어 놓으세요. PC 이름을 입력하려면 선택 상자를 켜세요.</value>
+  </data>
+  <data name="&amp;Keyboard Shortcuts" xml:space="preserve">
+    <value>단축키(&amp;K)</value>
+  </data>
+  <data name=" &amp;Keyboard Shortcuts " xml:space="preserve">
+    <value> 단축키(&amp;K) </value>
+  </data>
+  <data name=" [Managed]" xml:space="preserve">
+    <value> [관리자 설정]</value>
+  </data>
+  <data name="Default: {0}." xml:space="preserve">
+    <value>기본값: {0}.</value>
+  </data>
+  <data name="Use the same key on every machine. You can type your own key ({0}+ characters) or click New Key for an easy-to-type {1}-character key. Short custom keys are less secure." xml:space="preserve">
+    <value>모든 PC에서 같은 보안 키를 사용하세요. 직접 키를 입력하거나({0}자 이상) ‘새 키’를 눌러 입력하기 쉬운 {1}자 키를 만들 수 있습니다. 짧은 사용자 지정 키는 보안 수준이 낮습니다.</value>
+  </data>
+  <data name="Searching… Run this app on the other PCs to find them here." xml:space="preserve">
+    <value>검색 중… 다른 PC에서도 이 앱을 실행하면 여기에 표시됩니다.</value>
+  </data>
+  <data name="{0}/{1} complete" xml:space="preserve">
+    <value>{1}개 중 {0}개 완료</value>
+  </data>
+  <data name="ETA ~{0:0} hr" xml:space="preserve">
+    <value>약 {0:0}시간 남음</value>
+  </data>
+  <data name="ETA ~{0:0} min" xml:space="preserve">
+    <value>약 {0:0}분 남음</value>
+  </data>
+  <data name="ETA ~{0:0} sec" xml:space="preserve">
+    <value>약 {0:0}초 남음</value>
+  </data>
+  <data name="{0} item needs attention" xml:space="preserve">
+    <value>{0}개 항목 확인 필요</value>
+  </data>
+  <data name="{0} items need attention" xml:space="preserve">
+    <value>{0}개 항목 확인 필요</value>
+  </data>
+  <data name="{0} cancelled" xml:space="preserve">
+    <value>{0}개 취소됨</value>
+  </data>
+  <data name="{0} need attention" xml:space="preserve">
+    <value>{0}개 확인 필요</value>
+  </data>
+  <data name="About {0:d\.hh\:mm\:ss} remaining" xml:space="preserve">
+    <value>약 {0:d\.hh\:mm\:ss} 남음</value>
+  </data>
+  <data name="Press a key or hold a combination, then release all keys and choose Apply. Click the field to record again." xml:space="preserve">
+    <value>키 하나 또는 키 조합을 누르세요. 키를 모두 놓고 적용을 선택하세요. 다시 지정하려면 입력란을 누르세요.</value>
+  </data>
+  <data name="Computer layout" xml:space="preserve">
+    <value>PC 배치</value>
+  </data>
+  <data name="Computer name" xml:space="preserve">
+    <value>PC 이름</value>
+  </data>
+  <data name="Enable computer" xml:space="preserve">
+    <value>PC 사용</value>
+  </data>
+  <data name="Drag monitors to arrange computers. Use arrow keys to select a monitor and Control plus arrow keys to move it. Escape cancels a drag." xml:space="preserve">
+    <value>PC를 끌어 배치하세요. 방향키로 선택하고 Ctrl과 방향키로 이동하세요. Esc를 누르면 끌기를 취소합니다.</value>
+  </data>
+  <data name="Change…" xml:space="preserve">
+    <value>변경…</value>
+  </data>
+  <data name="Use a replacement cursor on this PC" xml:space="preserve">
+    <value>이 PC에서 대체 커서 사용</value>
+  </data>
+  <data name="&amp;Hide mouse at screen edge" xml:space="preserve">
+    <value>다른 PC 조작 중 커서 숨기기(&amp;H)</value>
+  </data>
+  <data name="Displays: {0}" xml:space="preserve">
+    <value>화면 {0}개</value>
+  </data>
+  <data name="Use Windows cursor" xml:space="preserve"><value>Windows 커서 사용</value></data>
+  <data name="Changes this PC's cursor and numeric keypad settings." xml:space="preserve"><value>이 PC의 커서·숫자 키패드 설정을 변경합니다.</value></data>
+  <data name="Applied: Mouse Keys on; replacement off." xml:space="preserve"><value>적용됨: Windows 마우스 키 켬 · 대체 커서 끔</value></data>
+  <data name="Only needed when Windows cannot show a cursor. Keep this off when the Windows cursor works. This choice is saved on this PC only." xml:space="preserve"><value>Windows 기본 커서가 표시되지 않을 때만 필요합니다. 기본 커서가 잘 보이면 꺼 두세요. 이 PC에만 저장됩니다.</value></data>
+  <data name="Turns on Windows Mouse Keys and turns off this PC's replacement cursor. This may restore a missing cursor; it does not fix input or network delays. Mouse Keys affects the numeric keypad. To undo, turn Mouse Keys off in Windows Settings &gt; Accessibility &gt; Mouse." xml:space="preserve"><value>Windows 마우스 키를 켜고 이 PC의 대체 커서를 끕니다. 사라진 커서 표시에 도움이 될 수 있지만 입력·네트워크 지연을 해결하지는 않습니다. 숫자 키패드 동작이 바뀔 수 있습니다. 되돌리려면 Windows 설정 → 접근성 → 마우스에서 ‘마우스 키’를 끄세요.</value></data>
+  <data name="Leave off for normal use. Changes how movement maps between screens; it does not repair cursor rendering or network delay." xml:space="preserve"><value>일반 사용에서는 꺼 두세요. 화면 간 이동량 계산 방식을 바꿉니다. 커서 표시 오류나 네트워크 지연을 해결하는 옵션은 아닙니다.</value></data>
+  <data name="Screen layout" xml:space="preserve"><value>모니터 배치</value></data>
+  <data name="Monitors — drag edges together" xml:space="preserve"><value>모니터 배치 — 가장자리를 맞춰 연결</value></data>
+  <data name="Computer" xml:space="preserve"><value>PC</value></data>
+  <data name="Drag screens until their edges meet. Arrow keys select a screen; Control plus arrows moves it. Shift moves faster. Escape cancels a drag. Apply saves the layout." xml:space="preserve"><value>모니터를 끌어 가장자리를 맞추세요. 방향키로 선택하고 Ctrl과 방향키로 이동합니다. Shift를 함께 누르면 빠르게 이동합니다. Esc는 끌기 취소, 적용은 배치 저장입니다.</value></data>
+  <data name="Screens overlap. Move them apart before applying." xml:space="preserve"><value>모니터가 겹쳐 있습니다. 겹치지 않게 옮긴 뒤 적용하세요.</value></data>
+  <data name="Connect a PC to load its screens." xml:space="preserve"><value>PC를 연결하면 모니터가 여기에 표시됩니다.</value></data>
+  <data name="Changes pending · Apply to use this layout" xml:space="preserve"><value>변경 대기 중 · 적용을 눌러 배치를 사용하세요</value></data>
+  <data name="Changes applied" xml:space="preserve"><value>저장된 배치</value></data>
+  <data name="Control administrator windows" xml:space="preserve"><value>관리자 창 제어</value></data>
+  <data name="Set up administrator control…" xml:space="preserve"><value>관리자 창 제어 설정…</value></data>
+  <data name="Your connections, preferences and file-transfer history are kept at the location shown above." xml:space="preserve"><value>연결 설정과 파일 전송 기록은 위에 표시한 위치에 보관합니다.</value></data>
+  <data name="Allow this Windows account and paired PCs to control administrator apps and Windows approval screens. Other programs running in this account could misuse MWBP to operate approval screens. Windows administrator approval is required. Your connections and layout are kept." xml:space="preserve"><value>이 Windows 계정과 연결된 PC에서 관리자 앱·Windows 승인 화면을 조작하도록 허용합니다. 이 계정의 다른 프로그램이 MWBP를 악용해 승인 화면을 조작할 위험도 생깁니다. Windows 관리자 승인이 필요하며 현재 연결과 화면 배치를 유지합니다.</value></data>
+  <data name="Disable administrator control…" xml:space="preserve"><value>관리자 창 제어 끄기…</value></data>
+  <data name="Administrator control is off. Normal mouse sharing and file transfers remain available." xml:space="preserve"><value>관리자 창 제어가 꺼졌습니다. 일반 마우스 공유와 파일 전송은 계속 사용할 수 있습니다.</value></data>
+  <data name="Drag to arrange. Touching edges are highlighted. Apply to save." xml:space="preserve"><value>끌어서 배치 · 맞닿은 경계 강조 · 적용하여 저장</value></data>
+  <data name="Switch to PC 1" xml:space="preserve"><value>PC 1로 전환</value></data>
+  <data name="Switch to PC 2" xml:space="preserve"><value>PC 2로 전환</value></data>
+  <data name="Switch to PC 3" xml:space="preserve"><value>PC 3로 전환</value></data>
+  <data name="Switch to PC 4" xml:space="preserve"><value>PC 4로 전환</value></data>
+  <data name="Next PC" xml:space="preserve"><value>다음 PC로 전환</value></data>
+  <data name="All PCs" xml:space="preserve"><value>모든 PC 조작</value></data>
+  <data name="Lock PCs" xml:space="preserve"><value>PC 잠금</value></data>
+  <data name="Reconnect" xml:space="preserve"><value>다시 연결</value></data>
+  <data name="Toggle edge switching" xml:space="preserve"><value>가장자리 전환 켜기·끄기</value></data>
+  <data name="Recorded keys" xml:space="preserve"><value>입력한 단축키</value></data>
+  <data name="Clear" xml:space="preserve"><value>지우기</value></data>
+  <data name="Choose an action to record its keys. PC numbers follow the connection list." xml:space="preserve"><value>바꿀 동작을 누르고 키를 입력하세요. PC 번호는 연결 목록 순서입니다.</value></data>
+  <data name="Record one key or a combination. Clear removes only this shortcut." xml:space="preserve"><value>키 하나 또는 여러 키 조합을 입력하세요. 지우기는 이 단축키만 해제합니다.</value></data>
+  <data name="Control switched to {0}." xml:space="preserve"><value>{0} 조작으로 전환했습니다.</value></data>
+  <data name="This shortcut is already assigned to {0}." xml:space="preserve"><value>이 키는 이미 ‘{0}’에 지정되어 있습니다. 다른 키를 지정하거나 기존 지정을 지워 주세요.</value></data>
+  <data name="Record one key or a combination. This toggles Always and Never; hold-to-switch modes are preserved." xml:space="preserve"><value>키 하나 또는 여러 키 조합을 입력하세요. ‘항상 전환’과 ‘전환 안 함’ 사이를 바꿉니다. 키를 누르는 동안만 전환하는 모드는 유지합니다.</value></data>
+  <data name="Another connection is awaiting approval." xml:space="preserve"><value>다른 PC의 연결 승인을 기다리고 있습니다. 승인하거나 취소한 뒤 다시 시도하세요.</value></data>
+  <data name="The two PCs have the same name. Rename one PC in Windows before connecting." xml:space="preserve"><value>두 PC의 Windows 이름이 같습니다. 한 PC의 이름을 바꾼 뒤 연결하세요.</value></data>
+  <data name="Both PCs already belong to connected groups." xml:space="preserve"><value>두 PC가 각각 다른 그룹에 연결되어 있습니다. 새로 가입할 PC의 기존 연결을 해제한 뒤 다시 연결하세요.</value></data>
+  <data name="This PC is already connected to a group. Disconnect it before joining another group." xml:space="preserve"><value>이 PC는 이미 그룹에 연결되어 있습니다. 기존 연결을 해제한 뒤 다른 그룹에 가입하세요.</value></data>
+  <data name="The approved connection could not be completed. Try connecting again." xml:space="preserve"><value>승인한 연결을 완료하지 못했습니다. PC 찾기에서 다시 연결하세요.</value></data>
+  <data name="Network setup did not complete. Mouse sharing can still run with the existing network permissions." xml:space="preserve"><value>네트워크 허용을 완료하지 못했습니다. 기존 네트워크 권한을 사용하는 마우스 공유는 계속됩니다.</value></data>
+  <data name="To connect this PC again, choose Find PCs… → Connect, compare the codes, and approve on both PCs." xml:space="preserve"><value>이 PC를 다시 연결하려면 ‘PC 찾기…’ → ‘연결’을 선택하고, 확인 번호를 비교한 뒤 양쪽 PC에서 승인하세요.</value></data>
+  <data name="Could not verify data from {0}. Check that both PCs use the same MWBP version." xml:space="preserve"><value>{0}에서 받은 데이터를 확인할 수 없습니다. 양쪽 PC에서 같은 MWBP 버전을 사용하는지 확인하세요.</value></data>
+  <data name="The connection approval does not match. Choose Find PCs… → Connect, compare the codes, and approve on both PCs. Use the same MWBP version on each PC." xml:space="preserve"><value>연결 승인 정보가 맞지 않습니다. ‘PC 찾기…’ → ‘연결’을 선택하고 확인 번호를 비교한 뒤 양쪽 PC에서 승인하세요. 각 PC에서 같은 MWBP 버전을 사용하세요.</value></data>
+  <data name="PC connections" xml:space="preserve"><value>PC 연결</value></data>
+  <data name="Choose a PC, compare the codes, then approve on both PCs." xml:space="preserve"><value>PC를 선택하고 확인 번호를 비교한 뒤 양쪽 PC에서 승인하세요.</value></data>
+  <data name="Administrator control status is unavailable. You can still set up or repair it." xml:space="preserve"><value>관리자 창 제어 상태를 확인할 수 없습니다. 설정하거나 복구할 수 있습니다.</value></data>
+  <data name="Setup required on this PC to control Windows approval screens remotely." xml:space="preserve"><value>Windows 승인 화면을 원격으로 조작하려면 이 PC에서 설정을 완료하세요.</value></data>
+  <data name="Protected installation · input service running" xml:space="preserve"><value>보호된 경로에 설치됨 · 입력 서비스 실행 중</value></data>
+  <data name="Administrator input service is not running. Choose Set up or repair." xml:space="preserve"><value>관리자 입력 서비스가 실행 중이 아닙니다. ‘관리자 창 제어 설정·복구’를 선택하세요.</value></data>
+  <data name="Set up or repair administrator control…" xml:space="preserve"><value>관리자 창 제어 설정·복구…</value></data>
+  <data name="Drag to arrange. Marked edges connect online screens. Apply to save." xml:space="preserve"><value>끌어서 배치 · 표시된 경계로 온라인 화면 이동 · 적용하여 저장</value></data>
+  <data name="Passable edges: {0}." xml:space="preserve"><value>화면 이동 구간: {0}.</value></data>
+  <data name="To control Windows approval screens remotely, set up administrator control in Installation after connecting your PCs." xml:space="preserve"><value>Windows 승인 화면을 원격으로 조작하려면 PC 연결 후 설치 탭에서 관리자 제어를 설정하세요.</value></data>
+  <data name="Connection help" xml:space="preserve"><value>연결 도움말</value></data>
+  <data name="Keyboard shortcuts" xml:space="preserve"><value>단축키</value></data>
+  <data name="PC {0} name" xml:space="preserve"><value>PC {0} 이름</value></data>
+  <data name="Enable PC {0}" xml:space="preserve"><value>PC {0} 사용</value></data>
+  <data name="MWBP on this PC" xml:space="preserve"><value>이 PC의 MWBP</value></data>
+  <data name="Install MWBP…" xml:space="preserve"><value>MWBP 설치…</value></data>
+  <data name="Repair installation…" xml:space="preserve"><value>설치 복구…</value></data>
+  <data name="Installation status is unavailable. You can still install or repair MWBP." xml:space="preserve"><value>설치 상태를 확인하지 못했습니다. MWBP 설치·복구는 계속할 수 있습니다.</value></data>
+  <data name="Install MWBP once on this PC. Your connections and layout are kept." xml:space="preserve"><value>이 PC에 MWBP를 설치하세요. 현재 연결과 모니터 배치는 유지됩니다.</value></data>
+  <data name="MWBP installed · administrator input service running" xml:space="preserve"><value>MWBP 설치됨 · 관리자 입력 서비스 실행 중</value></data>
+  <data name="MWBP installed · administrator input service stopped. Choose Repair installation." xml:space="preserve"><value>MWBP 설치됨 · 관리자 입력 서비스가 중지되어 있습니다. 설치 복구를 선택하세요.</value></data>
+  <data name="Connections, screen layout and transfer history stay on this PC." xml:space="preserve"><value>연결 설정·모니터 배치·파일 전송 기록은 이 PC에 보관됩니다.</value></data>
+  <data name="Manage this installation" xml:space="preserve"><value>앱 관리</value></data>
+  <data name="Open application folder" xml:space="preserve"><value>앱 폴더 열기</value></data>
+  <data name="Open settings folder" xml:space="preserve"><value>설정 폴더 열기</value></data>
+  <data name="Approve on both PCs only if the codes match." xml:space="preserve"><value>번호가 같으면 양쪽 PC에서 승인하세요.</value></data>
+  <data name="Other PC name or IPv4 address" xml:space="preserve"><value>연결할 PC 이름 또는 IPv4 주소</value></data>
+  <data name="Allow network access…" xml:space="preserve"><value>네트워크 허용…</value></data>
+  <data name="Automatic discovery is unavailable. Enter the PC below." xml:space="preserve"><value>자동 검색을 사용할 수 없습니다. 아래에 PC 이름이나 주소를 입력하세요.</value></data>
+  <data name="Searching… Run MWBP on the other PC, or enter it below." xml:space="preserve"><value>주변 PC를 찾고 있습니다. 다른 PC에서도 MWBP를 실행하거나 아래에 직접 입력하세요.</value></data>
+  <data name="Nearby PCs" xml:space="preserve"><value>주변 PC</value></data>
+  <data name="This PC is already connected." xml:space="preserve"><value>이미 연결된 PC입니다.</value></data>
+  <data name="Connecting to {0}… Compare the codes on both PCs." xml:space="preserve"><value>{0}에 연결 중… 양쪽 화면의 확인 번호를 비교하세요.</value></data>
+  <data name="Connection approval is unavailable. Close other MWBP copies and restart this app." xml:space="preserve"><value>연결 승인을 시작할 수 없습니다. 다른 MWBP 실행 창을 닫은 뒤 이 앱을 다시 시작하세요.</value></data>
+  <data name="Connection approval was cancelled or timed out. You can try again." xml:space="preserve"><value>연결 승인이 취소되었거나 시간이 지났습니다. 다시 연결할 수 있습니다.</value></data>
+  <data name="Could not connect: {0}" xml:space="preserve"><value>연결하지 못했습니다: {0}</value></data>
+  <data name="Network access allowed. Allow it on the other PC too, then try connecting." xml:space="preserve"><value>네트워크를 허용했습니다. 다른 PC에서도 허용한 뒤 다시 연결하세요.</value></data>
+  <data name="Could not allow network access: {0}" xml:space="preserve"><value>네트워크를 허용하지 못했습니다: {0}</value></data>
+  <data name="Delete saved connections and settings too?&#xA;&#xA;Choose No to keep your connections, screen layout and preferences for a later reinstall." xml:space="preserve"><value>연결과 설정도 삭제할까요?
+
+아니요를 선택하면 다시 설치할 때 연결·모니터 배치·환경설정을 유지합니다.</value></data>
+  <data name="Delete connections and settings?" xml:space="preserve"><value>연결과 설정도 삭제할까요?</value></data>
+  <data name="Install MWBP" xml:space="preserve"><value>MWBP 설치</value></data>
+  <data name="One mouse. All your PCs." xml:space="preserve"><value>마우스 하나로, 모든 PC를.</value></data>
+  <data name="Install MWBP and keep your connected PCs, screen layout and file-transfer history." xml:space="preserve"><value>연결된 PC·모니터 배치·파일 전송 기록을 유지하면서 MWBP를 설치합니다.</value></data>
+  <data name="Install MWBP, then find your other PCs and approve the connection on both screens." xml:space="preserve"><value>MWBP를 설치한 뒤 다른 PC를 찾고 양쪽 화면에서 연결을 승인하세요.</value></data>
+  <data name="Installation location: " xml:space="preserve"><value>설치 위치: </value></data>
+  <data name="Keep control when Windows asks for approval" xml:space="preserve"><value>Windows 승인 화면에서도 계속 제어</value></data>
+  <data name="Setup installs a SYSTEM input service. This Windows account and paired PCs will be able to control administrator apps and Windows approval screens. Other programs in this account could misuse this access. Windows administrator approval is required." xml:space="preserve"><value>설치 시 SYSTEM 입력 서비스를 추가합니다. 이 Windows 계정과 연결된 PC에서 관리자 앱·Windows 승인 화면을 조작할 수 있게 됩니다. 이 계정의 다른 프로그램이 이 권한을 악용할 위험도 생깁니다. Windows 관리자 승인이 필요합니다.</value></data>
+  <data name="Installing MWBP... Approve the Windows prompt to continue." xml:space="preserve"><value>MWBP를 설치하고 있습니다. 계속하려면 Windows 승인 화면에서 허용하세요.</value></data>
+  <data name="Installation was cancelled. Choose Install to try again, or Cancel to leave." xml:space="preserve"><value>설치가 취소되었습니다. 다시 시도하려면 설치를, 나가려면 취소를 선택하세요.</value></data>
+  <data name="Installation did not finish. Try again, or cancel." xml:space="preserve"><value>설치를 완료하지 못했습니다. 다시 시도하거나 취소할 수 있습니다.</value></data>
+  <data name="Changes on this page are saved automatically." xml:space="preserve"><value>이 화면의 변경사항은 자동으로 저장됩니다.</value></data>
+  <data name="Connection settings need attention. Use Find PCs to approve the connection again." xml:space="preserve"><value>연결 설정을 확인해야 합니다. PC 찾기에서 양쪽 화면을 확인하고 다시 연결을 승인하세요.</value></data>
+  <data name="When allowed by Windows policy, setup installs a SYSTEM input service. This Windows account and paired PCs will be able to control administrator apps and Windows approval screens. Other programs in this account could misuse this access. Windows administrator approval is required." xml:space="preserve"><value>Windows 정책에서 허용하면 설치 시 SYSTEM 입력 서비스를 추가합니다. 이 Windows 계정과 연결된 PC에서 관리자 앱·Windows 승인 화면을 조작할 수 있게 됩니다. 이 계정의 다른 프로그램이 이 권한을 악용할 위험도 생깁니다. Windows 관리자 승인이 필요합니다.</value></data>
+  <data name="Your organization disables administrator-screen control. Normal mouse, keyboard and file sharing remain available." xml:space="preserve"><value>조직의 Windows 정책으로 관리자 화면 제어를 사용할 수 없습니다. 일반 마우스·키보드 공유와 파일 전송은 계속 사용할 수 있습니다.</value></data>
+  <data name="Windows policy disables administrator control. Normal mouse, keyboard and file sharing remain available." xml:space="preserve"><value>Windows 정책으로 관리자 제어를 사용할 수 없습니다. 일반 마우스·키보드 공유와 파일 전송은 계속 사용할 수 있습니다.</value></data>
+  <data name="Your connections and settings are kept." xml:space="preserve"><value>기존 연결·설정을 유지합니다.</value></data>
+  <data name="Install a SYSTEM input service so paired PCs can control administrator apps and Windows approval screens. Other apps in this Windows account could misuse this access. Windows administrator approval is required." xml:space="preserve"><value>연결된 PC에서 관리자 앱과 Windows 승인 화면을 제어할 수 있도록 SYSTEM 입력 서비스를 설치합니다. 이 Windows 계정의 다른 앱이 이 권한을 악용할 수 있습니다. Windows 관리자 승인이 필요합니다.</value></data>
+  <data name="Windows policy allows only normal mouse, keyboard and file sharing." xml:space="preserve"><value>Windows 정책에 따라 일반 마우스·키보드·파일 공유만 사용할 수 있습니다.</value></data>
+  <data name="Can't see the PC? Allow network access on both PCs, then search or enter its name or IPv4 address." xml:space="preserve"><value>PC가 안 보이나요? 양쪽 PC에서 네트워크를 허용한 뒤 검색하거나 PC 이름·IPv4 주소를 입력하세요.</value></data>
+  <data name="About MWBP" xml:space="preserve"><value>MWBP 정보</value></data>
+  <data name="Credits and open-source licenses" xml:space="preserve"><value>제작 기여 및 오픈소스 라이선스</value></data>
+  <data name="MWBP is an unofficial project based on PowerToys Mouse Without Borders. It is not affiliated with or endorsed by Microsoft. Existing connections and settings are kept. PowerToys is not required." xml:space="preserve"><value>MWBP는 PowerToys의 Mouse Without Borders를 기반으로 수정한 비공식 프로젝트입니다. Microsoft와 제휴하거나 보증받은 제품이 아닙니다. 기존 연결과 설정을 유지하며, PowerToys 설치는 필요하지 않습니다.</value></data>
+  <data name="300 MB file clipboard limit" xml:space="preserve"><value>자동 전송 300MB 제한</value></data>
+  <data name="Only applies to copied files. Use Send files or drag and drop to send larger files." xml:space="preserve"><value>클립보드로 복사한 파일에만 적용합니다. 큰 파일은 ‘파일 보내기’나 드래그로 전송할 수 있습니다.</value></data>
+  <data name="Send files…" xml:space="preserve"><value>파일 보내기…</value></data>
+  <data name="Send files" xml:space="preserve"><value>파일 보내기</value></data>
+  <data name="No PCs are connected. Use Find PC to connect, then try again." xml:space="preserve"><value>연결된 PC가 없습니다. ‘PC 찾기’에서 연결한 뒤 다시 시도하세요.</value></data>
+  <data name="Send to PC" xml:space="preserve"><value>받는 PC</value></data>
+  <data name="Choose files…" xml:space="preserve"><value>파일 선택…</value></data>
+  <data name="Send files to {0}" xml:space="preserve"><value>{0}에 파일 보내기</value></data>
+  <data name="The PC disconnected. Connect again, then resend the files." xml:space="preserve"><value>PC 연결이 끊어졌습니다. 다시 연결한 뒤 파일을 보내세요.</value></data>
+  <data name="Select between 1 and {0} files." xml:space="preserve"><value>파일을 1~{0}개 선택하세요.</value></data>
+</root>

@@ -1,0 +1,43 @@
+<Project>
+  <PropertyGroup>
+    <!-- Portable fork version and repository metadata. -->
+    <Version>1.2.0-rc.4</Version>
+    <VersionChannel>preview</VersionChannel>
+    <ChecksumAlgorithm>SHA256</ChecksumAlgorithm>
+
+    <!-- Upstream source copyright headers remain untouched. -->
+    <AssemblyProduct>Mouse Without Borders Plus</AssemblyProduct>
+    <AssemblyTitle>MWBP</AssemblyTitle>
+    <Product>Mouse Without Borders Plus</Product>
+    <RepositoryUrl>https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus</RepositoryUrl>
+    <RepositoryType>GitHub</RepositoryType>
+    <NeutralLanguage>en-US</NeutralLanguage>
+
+    <Platforms>x64;ARM64</Platforms>
+    <PlatformTarget>$(Platform)</PlatformTarget>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
+    <!-- Keep builds focused on compilation/runtime behavior. -->
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <RunAnalyzers>false</RunAnalyzers>
+
+    <!-- Microsoft.Testing.Platform settings used by the existing MWB tests. -->
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <TestingPlatformShowTestsFailure>true</TestingPlatformShowTestsFailure>
+    <TestingPlatformDotNetTestSupport>true</TestingPlatformDotNetTestSupport>
+    <TestingPlatformCommandLineArguments>$(TestingPlatformCommandLineArguments) --report-trx</TestingPlatformCommandLineArguments>
+    <TestingPlatformDisableCustomTestTarget Condition="'$(Platform)' == 'ARM64'">true</TestingPlatformDisableCustomTestTarget>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MouseWithoutBorders'">
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts\obj\app\</BaseIntermediateOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\obj\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'MouseWithoutBorders.UnitTests'">
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts\obj\tests\</BaseIntermediateOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\obj\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <Target Name="Test" Condition="'$(MSBuildProjectName)' != 'MouseWithoutBorders.UnitTests'" />
+</Project>
