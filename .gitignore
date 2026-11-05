@@ -1,0 +1,33 @@
+# Visual Studio and local user state
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# .NET build and test output
+artifacts/
+**/bin/
+**/obj/
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+*.pdb
+*.log
+
+# Local publish output and signing material
+publish/
+*.pfx
+*.snk
+
+# Portable user data contains the shared security key
+MouseWithoutBorders.prefs.json
+*.prefs.json
+
+# Editor and OS leftovers
+*~
+*.tmp
+Thumbs.db
+.DS_Store

@@ -1,0 +1,13 @@
+* text=auto
+
+*.cs text eol=crlf
+*.resx text eol=crlf
+*.ps1 text eol=crlf
+*.yml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+
+*.bmp binary
+*.ico binary
+*.jpg binary
+*.png binary

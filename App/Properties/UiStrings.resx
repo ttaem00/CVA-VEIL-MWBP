@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (c) Mouse Without Borders contributors. Licensed under the MIT license. -->
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <!-- English source strings are the fallback in Ui.Text. -->
+  <data name="Drag to arrange. Touching edges are highlighted. Apply to save." xml:space="preserve"><value>Drag to arrange. Touching edges are highlighted. Apply to save.</value></data>
+</root>

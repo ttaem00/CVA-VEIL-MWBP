@@ -1,2 +1,48 @@
-# CVA-VEIL-MWBP
-VEIL MWBP: Windows mouse, keyboard and file sharing with a single-file installer
+# VEIL MWBP — Mouse Without Borders Plus
+
+Windows PC 사이에서 마우스·키보드·클립보드·파일을 공유하는 독립형 앱입니다. 현재 배포 후보는 **1.2.0-rc.4**입니다. PowerToys나 별도 .NET 런타임 설치가 필요하지 않습니다.
+
+## 설치
+
+`VEIL-MWBP-Setup.exe` 실행 → **MWBP 설치** → Windows 승인으로 설치합니다. 계정용·폴더용·포터블 중에서 설치 방식을 고를 필요가 없습니다. 기존 연결·모니터 배치·단축키·전송 기록은 유지합니다.
+
+각 PC에 같은 버전을 설치하고 **PC 찾기**에서 연결할 PC를 선택하세요. 양쪽 화면의 확인 코드가 같으면 양쪽에서 승인합니다. 목록에 없으면 해당 PC의 이름 또는 IPv4 주소를 직접 입력할 수 있습니다. 공유 보안 키를 수동 입력할 필요는 없습니다.
+
+연결된 각 모니터를 끌어 실제 위치에 맞추고 가장자리를 붙여 적용하세요. 모니터별 자유 배치·스냅·접경 표시를 지원하며, 전환 조건과 PC 전환 단축키를 직접 지정할 수 있습니다.
+
+**파일 보내기…**에서 받는 PC와 파일을 선택하면 그 PC의 설정된 수신 폴더로 전송합니다. 클립보드 복사나 PC 전환은 필요하지 않습니다. 이 기능의 목적지 동작을 동일하게 사용하려면 보내는 PC와 받는 PC를 모두 같은 버전으로 설치하세요.
+
+옵션의 **자동 전송 300MB 제한**은 기본으로 켜져 있습니다. 이 제한은 클립보드로 복사한 단일 파일에만 적용하며, 정확히 300MB는 허용합니다. 큰 파일은 파일 보내기나 드래그로 전송할 수 있습니다. 텍스트·이미지 클립보드 공유와 파일 전송 허용은 별도 설정입니다.
+
+설치한 앱은 시작 메뉴의 **Mouse Without Borders Plus**에서 실행합니다. 제거는 Windows **설치된 앱** 목록이나 MWBP 설정에서 시작하고, 연결·설정 보존 여부를 선택합니다. 설치 실행 파일의 내부 이름과 서비스·설정 경로는 기존 MWBP와 호환되게 유지합니다.
+
+## 관리자 앱과 커서
+
+Windows 승인을 받아 설치한 SYSTEM 입력 서비스가 관리자 앱과 UAC 화면 입력을 담당합니다. 설치 화면에서 이 권한을 설명하며 Windows 정책과 승인을 우회하지 않습니다. 서비스가 정책으로 금지된 경우 일반 입력·연결·파일 공유는 별도로 유지합니다.
+
+마우스 이동의 불필요한 대기 제거는 항상 적용됩니다. **Windows 커서 사용** 버튼은 Windows 마우스 키를 켜고 대체 커서를 끄는 표시 설정이며, 입력·네트워크 지연 해결 버튼이 아닙니다. 마우스 키는 숫자 키패드 동작에 영향을 줄 수 있습니다.
+
+RC4는 설정 파일을 읽고 쓰는 동안 입력 설정 잠금을 보유하지 않습니다. 다른 PC로 보내는 통신도 전체 연결 목록 잠금 밖에서 처리하고, 이동·휠 입력은 파일 취소 잠금을 사용하지 않습니다. 설정 저장 순서와 같은 PC로 보내는 프레임 순서는 기존 소유 지점에서 유지합니다.
+
+## 빌드와 배포
+
+개발 환경은 Windows, PowerShell 7, .NET SDK **10.0.403**입니다. `global.json`으로 SDK를 고정하고, 설치 EXE에 .NET **10.0.14** 보안 패치를 포함합니다. 실제 확인한 사용 환경은 Windows 11 x64입니다. ARM64 빌드 옵션이 있지만 이번 배포 후보의 ARM64 실사용을 검증했다고 주장하지 않습니다.
+
+```powershell
+pwsh -NoProfile -File ./build.ps1 -RunTests
+pwsh -NoProfile -File './VEIL- MWBP/Build-Release.ps1' -Destination 'C:/build/VEIL- MWBP'
+```
+
+상세 배포 진입점은 [VEIL- MWBP](<VEIL- MWBP/README.md>)에 있습니다. 출력 폴더는 비어 있어야 하며, 단일 설치 EXE·SHA256·라이선스·설치 안내가 생성됩니다. .NET이 포함된 같은 EXE가 설치와 앱 실행을 담당합니다. 개발 환경이나 비공개 저장소 접근은 사용자 설치의 선행 조건이 아닙니다.
+
+공개 배포 위치는 [ttaem00/CVA-VEIL-MWBP](https://github.com/ttaem00/CVA-VEIL-MWBP)입니다. 공개 소스에는 앱·시험·빌드 스크립트·라이선스만 포함합니다. 실제 연결 설정·보안 키·전송 기록·개인 PC 진단 및 업데이트 스크립트는 배포하지 않습니다. 정보 화면의 업데이트 확인은 사용자가 누를 때만 실행하며, 조회 실패가 입력·연결·파일 전송을 막지 않습니다.
+
+단위 시험, 세 PC 설치, 실제 사용 확인은 구분해서 기록합니다. 배포 후보라는 표시는 모든 Windows 구성과 모든 기능의 실사용이 검증됐다는 보증이 아닙니다.
+
+실제 Windows 화면 합성 시험은 시험 창이 전경을 얻어야 실행됩니다. 이 전제가 성립하지 않으면 해당 포커스·합성 검사는 `Inconclusive`로 남으며, 검사 성공으로 세지 않습니다. 파일·입력·설치 등 다른 시험은 독립적으로 실행합니다.
+
+## 출처와 라이선스
+
+MIT [aeae1/MouseWithoutBorders-Portable](https://github.com/aeae1/MouseWithoutBorders-Portable)의 `e9feba6da37b35a763a638a7e071c7189180cc14`를 기반으로 합니다. Microsoft PowerToys의 MWB 엔진과 원 저작권·[LICENSE](LICENSE)·[NOTICE](NOTICE.md)를 보존합니다. Input Director는 공개 UX 자료만 참고했으며 독점 코드를 사용하지 않았습니다.
+
+제3자 고지는 [THIRD-PARTY-NOTICES](<VEIL- MWBP/THIRD-PARTY-NOTICES.txt>)와 EXE의 정보 화면에 포함됩니다. Microsoft와 제휴하거나 보증받은 제품은 아닙니다.
