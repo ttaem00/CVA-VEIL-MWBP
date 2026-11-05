@@ -1,6 +1,10 @@
-# VEIL MWBP — Mouse Without Borders Plus
+# CVA-VEIL-Mouse_Without_Border_Plus
+
+VEIL 브랜드의 마우스·키보드 공유 제품이며, 앱 안에서는 **MWBP**로 표시합니다.
 
 Windows PC 사이에서 마우스·키보드·클립보드·파일을 공유하는 독립형 앱입니다. 현재 배포 후보는 **1.2.0-rc.4**입니다. PowerToys나 별도 .NET 런타임 설치가 필요하지 않습니다.
+
+PowerToys의 Mouse Without Borders를 기반으로 수정한 **비공식 프로젝트**입니다. Microsoft와 제휴하거나 보증받은 제품이 아닙니다. 원본 MIT 라이선스와 제3자 고지는 유지하며, 배포용 아이콘은 원본 그림을 재색칠하지 않은 VEIL 자체 표식을 사용합니다.
 
 ## 설치
 
@@ -35,7 +39,7 @@ pwsh -NoProfile -File './VEIL- MWBP/Build-Release.ps1' -Destination 'C:/build/VE
 
 상세 배포 진입점은 [VEIL- MWBP](<VEIL- MWBP/README.md>)에 있습니다. 출력 폴더는 비어 있어야 하며, 단일 설치 EXE·SHA256·라이선스·설치 안내가 생성됩니다. .NET이 포함된 같은 EXE가 설치와 앱 실행을 담당합니다. 개발 환경이나 비공개 저장소 접근은 사용자 설치의 선행 조건이 아닙니다.
 
-공개 배포 위치는 [ttaem00/CVA-VEIL-MWBP](https://github.com/ttaem00/CVA-VEIL-MWBP)입니다. 공개 소스에는 앱·시험·빌드 스크립트·라이선스만 포함합니다. 실제 연결 설정·보안 키·전송 기록·개인 PC 진단 및 업데이트 스크립트는 배포하지 않습니다. 정보 화면의 업데이트 확인은 사용자가 누를 때만 실행하며, 조회 실패가 입력·연결·파일 전송을 막지 않습니다.
+공개 배포 위치는 [ttaem00/CVA-VEIL-Mouse_Without_Border_Plus](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus)입니다. 공개 소스에는 앱·시험·빌드 스크립트·라이선스만 포함합니다. 실제 연결 설정·보안 키·전송 기록·개인 PC 진단 및 업데이트 스크립트는 배포하지 않습니다. 정보 화면의 업데이트 확인은 사용자가 누를 때만 실행하며, 조회 실패가 입력·연결·파일 전송을 막지 않습니다.
 
 단위 시험, 세 PC 설치, 실제 사용 확인은 구분해서 기록합니다. 배포 후보라는 표시는 모든 Windows 구성과 모든 기능의 실사용이 검증됐다는 보증이 아닙니다.
 

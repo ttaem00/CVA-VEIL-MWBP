@@ -107,8 +107,8 @@ namespace MouseWithoutBorders
         {
             InitializeComponent();
             Text = Setting.Values.MyID;
-            NotifyIcon.BalloonTipText = Application.ProductName;
-            NotifyIcon.BalloonTipTitle = Application.ProductName;
+            NotifyIcon.BalloonTipText = StandaloneProduct.DisplayName;
+            NotifyIcon.BalloonTipTitle = StandaloneProduct.DisplayName;
             menuGenDumpFile.Visible = true;
 
 #if PORTABLE_SINGLE_FILE
@@ -965,7 +965,7 @@ namespace MouseWithoutBorders
             }
             else
             {
-                SetTrayIconText(Application.ProductName);
+                SetTrayIconText(StandaloneProduct.DisplayName);
             }
         }
 

@@ -295,7 +295,7 @@ internal static class PortableApplication
 
     internal static (string Name, object Value)[] InstalledApplicationValues(string executablePath, string version) =>
     [
-        ("DisplayName", "Mouse Without Borders Plus"), ("DisplayVersion", version),
+        ("DisplayName", StandaloneProduct.DisplayName), ("DisplayVersion", version),
         ("DisplayIcon", executablePath + ",0"), ("InstallLocation", Path.GetDirectoryName(executablePath)!),
         ("UninstallString", '"' + executablePath + "\" " + UninstallArgument),
         ("URLInfoAbout", StandaloneProduct.ProjectUrl), ("NoModify", 1), ("NoRepair", 1),

@@ -16,7 +16,7 @@
     <DisableWinExeOutputInference>true</DisableWinExeOutputInference>
     <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <ApplicationIcon>ClassicGreen.ico</ApplicationIcon>
+    <ApplicationIcon>Veil.ico</ApplicationIcon>
     <NoWin32Manifest>true</NoWin32Manifest>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
@@ -45,7 +45,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="ClassicGreen.ico" LogicalName="MouseWithoutBorders.ClassicGreen.ico" />
+    <EmbeddedResource Include="Veil.ico" LogicalName="MouseWithoutBorders.Veil.ico" />
     <EmbeddedResource Include="..\LICENSE" LogicalName="MouseWithoutBorders.License" />
     <EmbeddedResource Include="..\NOTICE.md" LogicalName="MouseWithoutBorders.UpstreamNotices" />
     <EmbeddedResource Include="..\VEIL- MWBP\THIRD-PARTY-NOTICES.txt" LogicalName="MouseWithoutBorders.ThirdPartyNotices" />

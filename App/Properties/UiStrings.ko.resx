@@ -859,7 +859,7 @@ IP 주소는 네트워크에서 사용하는 PC의 주소입니다. 해당 PC의
   <data name="Can't see the PC? Allow network access on both PCs, then search or enter its name or IPv4 address." xml:space="preserve"><value>PC가 안 보이나요? 양쪽 PC에서 네트워크를 허용한 뒤 검색하거나 PC 이름·IPv4 주소를 입력하세요.</value></data>
   <data name="About MWBP" xml:space="preserve"><value>MWBP 정보</value></data>
   <data name="Credits and open-source licenses" xml:space="preserve"><value>제작 기여 및 오픈소스 라이선스</value></data>
-  <data name="Independent Mouse Without Borders Plus edition, distributed as VEIL MWBP. Install once; existing connections and settings are kept. PowerToys is not required. This project is not affiliated with or endorsed by Microsoft." xml:space="preserve"><value>VEIL MWBP로 배포하는 독립형 Mouse Without Borders Plus입니다. 한 번 설치하면 기존 연결과 설정을 유지합니다. PowerToys는 필요하지 않습니다. Microsoft와 제휴하거나 보증받은 제품은 아닙니다.</value></data>
+  <data name="MWBP is an unofficial project based on PowerToys Mouse Without Borders. It is not affiliated with or endorsed by Microsoft. Existing connections and settings are kept. PowerToys is not required." xml:space="preserve"><value>MWBP는 PowerToys의 Mouse Without Borders를 기반으로 수정한 비공식 프로젝트입니다. Microsoft와 제휴하거나 보증받은 제품이 아닙니다. 기존 연결과 설정을 유지하며, PowerToys 설치는 필요하지 않습니다.</value></data>
   <data name="300 MB file clipboard limit" xml:space="preserve"><value>자동 전송 300MB 제한</value></data>
   <data name="Only applies to copied files. Use Send files or drag and drop to send larger files." xml:space="preserve"><value>클립보드로 복사한 파일에만 적용합니다. 큰 파일은 ‘파일 보내기’나 드래그로 전송할 수 있습니다.</value></data>
   <data name="Send files…" xml:space="preserve"><value>파일 보내기…</value></data>

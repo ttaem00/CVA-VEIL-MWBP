@@ -10,7 +10,8 @@ namespace MouseWithoutBorders.Core;
 
 internal static class StandaloneProduct
 {
-    internal const string ProjectUrl = "https://github.com/ttaem00/CVA-VEIL-MWBP";
+    internal const string DisplayName = "MWBP";
+    internal const string ProjectUrl = "https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus";
 
     internal static void OpenProjectPage(IWin32Window owner = null)
     {

@@ -1,4 +1,6 @@
-VEIL MWBP — 설치 안내
+MWBP — 설치 안내
+
+PowerToys의 Mouse Without Borders를 기반으로 수정한 비공식 프로젝트입니다. Microsoft와 제휴하거나 보증받은 제품이 아닙니다.
 
 VEIL-MWBP-Setup.exe를 실행하고 ‘MWBP 설치’를 누른 뒤 Windows 승인 창에서 허용하세요.
 별도 PowerToys나 .NET 런타임 설치는 필요하지 않습니다.

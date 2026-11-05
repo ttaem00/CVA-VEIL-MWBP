@@ -24,13 +24,14 @@ internal static class PeerPairingDialog
                 if (owner?.IsDisposed == true) owner = null;
                 using var dialog = new System.Windows.Forms.Form
                 {
-                    Text = "PC 연결 확인 · Mouse Without Borders Plus",
+                    Text = "PC 연결 확인 · " + StandaloneProduct.DisplayName,
                     ClientSize = new Size(500, 350), Font = SystemFonts.MessageBoxFont,
                     AutoScaleMode = AutoScaleMode.Dpi, AutoScaleDimensions = new SizeF(96, 96),
                     StartPosition = owner?.Visible == true ? FormStartPosition.CenterParent : FormStartPosition.CenterScreen,
                     FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false,
                     ShowInTaskbar = false, BackColor = SystemColors.Window, ForeColor = SystemColors.WindowText,
                 };
+                StandaloneBranding.Apply(dialog);
                 using var headingFont = new Font(dialog.Font.FontFamily, 17, FontStyle.Bold);
                 using var codeFont = new Font("Consolas", 36, FontStyle.Bold);
                 var heading = new Label

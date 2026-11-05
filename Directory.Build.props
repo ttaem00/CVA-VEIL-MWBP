@@ -7,8 +7,9 @@
 
     <!-- Upstream source copyright headers remain untouched. -->
     <AssemblyProduct>Mouse Without Borders Plus</AssemblyProduct>
+    <AssemblyTitle>MWBP</AssemblyTitle>
     <Product>Mouse Without Borders Plus</Product>
-    <RepositoryUrl>https://github.com/ttaem00/CVA-VEIL-MWBP</RepositoryUrl>
+    <RepositoryUrl>https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus</RepositoryUrl>
     <RepositoryType>GitHub</RepositoryType>
     <NeutralLanguage>en-US</NeutralLanguage>
 

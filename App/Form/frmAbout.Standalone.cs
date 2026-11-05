@@ -20,7 +20,7 @@ internal partial class FrmAbout
     {
         Opacity = 1D;
         Text = Ui.Text("About MWBP");
-        labelProductName.Text = $"Mouse Without Borders Plus {Application.ProductVersion}";
+        labelProductName.Text = $"{StandaloneProduct.DisplayName} {Application.ProductVersion}";
         labelCompanyName.Text = "Original creator: Truong Do (Đỗ Đức Trường)";
         groupBoxContributors.Text = Ui.Text("Credits and open-source licenses");
 
@@ -53,7 +53,7 @@ internal partial class FrmAbout
         Controls.Add(check); Controls.Add(result);
 
         var originalCredits = textBoxContributors.Text.TrimStart();
-        textBoxContributors.Text = Ui.Text("Independent Mouse Without Borders Plus edition, distributed as VEIL MWBP. Install once; existing connections and settings are kept. PowerToys is not required. This project is not affiliated with or endorsed by Microsoft.") +
+        textBoxContributors.Text = Ui.Text("MWBP is an unofficial project based on PowerToys Mouse Without Borders. It is not affiliated with or endorsed by Microsoft. Existing connections and settings are kept. PowerToys is not required.") +
             "\r\n\r\n" + originalCredits;
         foreach (string name in new[] { "MouseWithoutBorders.License", "MouseWithoutBorders.UpstreamNotices", "MouseWithoutBorders.ThirdPartyNotices" })
         {

@@ -11,13 +11,13 @@ using System.Windows.Forms;
 namespace MouseWithoutBorders;
 
 /// <summary>
-/// Applies the icon embedded in MouseWithoutBorders.exe to every standalone UI surface.
-/// The build embeds App/ClassicGreen.ico, making that the single artwork source for the
-/// executable, title bars, and the dynamically updated tray icon.
+/// Applies the standalone executable's product icon to its UI surfaces.
+/// App/Veil.png is the approved master. The build embeds its size-converted App/Veil.ico for the
+/// executable, title bars, and the tray icon.
 /// </summary>
 internal static class StandaloneBranding
 {
-    private const string ProductIconResourceName = "MouseWithoutBorders.ClassicGreen.ico";
+    private const string ProductIconResourceName = "MouseWithoutBorders.Veil.ico";
 
     internal static Icon CreateProductIcon()
     {

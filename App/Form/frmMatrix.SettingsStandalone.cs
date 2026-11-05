@@ -71,6 +71,7 @@ internal partial class FrmMatrix
             AutoScaleMode = AutoScaleMode.Dpi, AutoScaleDimensions = new SizeF(96, 96),
             MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false, Font = Font,
         };
+        StandaloneBranding.Apply(dialog);
         var prompt = new Label { Text = Ui.Text("Press a key or hold a combination, then release all keys and choose Apply. Click the field to record again."),
             Bounds = new Rectangle(16, 16, 448, 48) };
         int[] captured = initial;

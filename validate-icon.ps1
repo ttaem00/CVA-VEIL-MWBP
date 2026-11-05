@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $Path = (Join-Path $PSScriptRoot 'App\ClassicGreen.ico')
+    [string] $Path = (Join-Path $PSScriptRoot 'App\Veil.ico')
 )
 
 $ErrorActionPreference = 'Stop'

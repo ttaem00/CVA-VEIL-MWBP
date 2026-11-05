@@ -36,6 +36,7 @@ internal static class SendFilesDialog
             MaximizeBox = false, MinimizeBox = false, ShowInTaskbar = false,
             BackColor = SystemColors.Window, ForeColor = SystemColors.WindowText,
         };
+        StandaloneBranding.Apply(dialog);
         var content = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown,
             WrapContents = false, AutoScroll = true, Padding = new Padding(24, 20, 24, 8) };
         var label = new Label { Text = Ui.Text("Send to PC"), AutoSize = true, Margin = new Padding(0, 0, 0, 8) };

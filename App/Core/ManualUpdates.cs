@@ -17,7 +17,7 @@ internal static class ManualUpdates
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15), MaxResponseContentBufferSize = 1024 * 1024 };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("MouseWithoutBorders-Portable/" + current);
-        string json = await http.GetStringAsync("https://api.github.com/repos/ttaem00/CVA-VEIL-MWBP/releases?per_page=100", token);
+        string json = await http.GetStringAsync("https://api.github.com/repos/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases?per_page=100", token);
         return SelectNewer(json, current);
     }
     internal static string SelectNewer(string json, string current)

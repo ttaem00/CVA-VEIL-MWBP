@@ -18,6 +18,8 @@ namespace MouseWithoutBorders
         public FrmMessage(string text, string bigText, int lifeTime)
         {
             InitializeComponent();
+            labelTitle.Text = StandaloneProduct.DisplayName;
+            pictureBoxIcon.Image = StandaloneBranding.CreateProductIconBitmap(new System.Drawing.Size(16, 16));
 
             Left = Top = 10;
             UpdateInfo(text, bigText, lifeTime);

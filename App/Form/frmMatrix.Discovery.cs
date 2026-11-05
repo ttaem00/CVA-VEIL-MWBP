@@ -37,6 +37,7 @@ internal partial class FrmMatrix
         using var dialog = new System.Windows.Forms.Form { Name = "nearbyComputers", Text = Ui.Text("Find PCs…"), StartPosition = FormStartPosition.CenterParent,
             ClientSize = new Size(560, 400), MinimumSize = new Size(480, 360), MinimizeBox = false, MaximizeBox = false, Font = Font,
             AutoScaleMode = AutoScaleMode.Dpi, AutoScaleDimensions = new SizeF(96, 96), Padding = new Padding(16) };
+        StandaloneBranding.Apply(dialog);
         var computer = new Label { Text = Ui.Text("This computer: ") + Common.MachineName, Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0, 0, 0, 8) };
         var guide = Explanation(Ui.Text("Approve on both PCs only if the codes match."));
         guide.Dock = DockStyle.Top; guide.Height = Font.Height + 6; guide.AutoSize = false;
