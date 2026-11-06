@@ -84,6 +84,30 @@ internal static class Receiver
 
     private static System.Drawing.Point lastXY;
 
+    private static bool IsAbsoluteMove(DATA package) => package.Type == PackageType.Mouse
+        && package.Md.dwFlags == WM.WM_MOUSEMOVE && (uint)package.Md.X <= 65535 && (uint)package.Md.Y <= 65535;
+
+    internal static DATA CoalesceMouseMoves(DATA package, TcpSk tcp)
+    {
+        if (!IsAbsoluteMove(package) || tcp.Status != SocketStatus.Connected) return package;
+        // Only drain what is already buffered: a continuous sender cannot postpone injection.
+        int remaining = tcp.BackingSocket.Available / Package.PACKAGE_SIZE;
+        while (remaining-- > 0)
+        {
+            byte[] header = SocketStuff.ReadPackageHeader(tcp, out int count);
+            var next = new DATA(header);
+            if (count != Package.PACKAGE_SIZE || !IsAbsoluteMove(next) || next.Src != package.Src || next.Des != package.Des)
+            {
+                // Do not wait for a control frame's body before delivering this position.
+                tcp.PendingHeader = (header, count);
+                break;
+            }
+            // Even superseded positions must retain the existing cross-socket duplicate protection.
+            if (PreProcess(next, tcp.MachineId)) package = next;
+        }
+        return package;
+    }
+
     internal static void ProcessPackage(DATA package, TcpSk tcp)
     {
         if (package.Type == PackageType.SharedSettings)
@@ -110,6 +134,8 @@ internal static class Receiver
         {
             return;
         }
+
+        package = CoalesceMouseMoves(package, tcp);
 
         switch (package.Type)
         {
