@@ -573,21 +573,8 @@ internal static class Common
 
     private static void PokeMyself()
     {
-        int x, y = 0;
-
-        for (int i = 0; i < 10; i++)
-        {
-            x = Encryption.Ran.Next(-9, 10);
-            InputSimulation.MoveMouseRelative(x, y);
-            Thread.Sleep(50);
-            InputSimulation.MoveMouseRelative(-x, -y);
-            Thread.Sleep(50);
-
-            if (lastInputEventCount != Event.InputEventCount)
-            {
-                break;
-            }
-        }
+        // Reset the Windows idle timer without moving the pointer or holding up received input.
+        InputSimulation.MoveMouseRelative(0, 0);
     }
 
     internal static void InitLastInputEventCount()

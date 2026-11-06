@@ -831,6 +831,7 @@ namespace MouseWithoutBorders.Class
             Thread t = new(ServerThread, "TCP Server Thread " + tcp.BackingSocket.LocalEndPoint.ToString() + " : " + machineName);
 
             t.SetApartmentState(ApartmentState.STA);
+            t.Priority = ThreadPriority.AboveNormal;
             t.Start();
         }
 
@@ -1273,6 +1274,7 @@ namespace MouseWithoutBorders.Class
             Thread t = new(NewTcpClient, "TCP Client Thread " + machineName + " " + ip.ToString());
 
             t.SetApartmentState(ApartmentState.STA);
+            t.Priority = ThreadPriority.AboveNormal;
             t.Start();
         }
 
