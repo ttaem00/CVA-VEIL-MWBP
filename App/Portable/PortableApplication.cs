@@ -521,11 +521,6 @@ internal static class PortableApplication
         if (ShortcutIsOwnedBy(shortcutPath, executablePath)) File.Delete(shortcutPath);
     }
 
-    internal static void RetargetShortcutIfOwnedBy(string shortcutPath, string previousExecutable, string executable)
-    {
-        if (ShortcutIsOwnedBy(shortcutPath, previousExecutable)) CreateShortcut(shortcutPath, executable);
-    }
-
     private static bool ShortcutIsOwnedBy(string shortcutPath, string executablePath)
     {
         if (!File.Exists(shortcutPath)) return false;
