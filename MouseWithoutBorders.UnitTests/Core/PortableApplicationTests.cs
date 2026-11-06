@@ -488,6 +488,8 @@ public sealed class PortableApplicationTests
             configured.Properties.KeyboardShortcutsEnabled = true;
             configured.Properties.LockMachineShortcut = new HotkeySettings(false, true, true, false, 'L');
             configured.Properties.ReconnectShortcut = new HotkeySettings(true, true, false, false, 'R');
+            configured.Properties.ShortcutKeys["NextComputer"] = [0x11, 0x12, 0x74];
+            configured.Properties.ShortcutKeys["Computer2"] = [0x14];
             File.WriteAllText(target, JsonSerializer.Serialize(configured, SettingsUtils.SerializerOptions));
             var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(target))!;
             json["future-version-field"] = "keep this too";
