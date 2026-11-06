@@ -118,6 +118,7 @@ public sealed class Rc8SettingsTests
                 Setting.Values = Settings(document);
                 Setting.Values.Username = "settings-test";
                 using var settings = new MouseWithoutBorders.FrmMatrix();
+                StringAssert.Contains(settings.Text, Application.ProductVersion);
                 // Run the actual settings Load path without starting the input/network timer in Shown.
                 typeof(MouseWithoutBorders.FrmMatrix).GetMethod("OnLoad", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(settings, new object[] { EventArgs.Empty });
                 typeof(MouseWithoutBorders.FrmMatrix).GetField("formShown", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(settings, true);

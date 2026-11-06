@@ -483,6 +483,12 @@ public sealed class PortableApplicationTests
         WithTemporarySettingsPath(target =>
         {
             WriteInstallSettings(target, "canonical-group");
+            var configured = ReadSettings(target);
+            configured.Properties.MonitorOrigins = [new(101, "MAIN-1", -1920, 120), new(101, "MAIN-2", 0, 0), new(202, "GAME-1", 2560, 0)];
+            configured.Properties.KeyboardShortcutsEnabled = true;
+            configured.Properties.LockMachineShortcut = new HotkeySettings(false, true, true, false, 'L');
+            configured.Properties.ReconnectShortcut = new HotkeySettings(true, true, false, false, 'R');
+            File.WriteAllText(target, JsonSerializer.Serialize(configured, SettingsUtils.SerializerOptions));
             var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(target))!;
             json["future-version-field"] = "keep this too";
             File.WriteAllText(target, json.ToJsonString());

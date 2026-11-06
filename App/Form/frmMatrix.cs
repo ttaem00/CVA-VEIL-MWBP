@@ -54,7 +54,7 @@ namespace MouseWithoutBorders
             InitializeComponent();
             Font = SystemFonts.MessageBoxFont;
 
-            Text = StandaloneProduct.DisplayName + " — " + Ui.Text("Settings");
+            Text = StandaloneProduct.DisplayName + " " + Application.ProductVersion + " — " + Ui.Text("Settings");
             toolTip.ToolTipTitle = StandaloneProduct.DisplayName;
             toolTipManual.ToolTipTitle = StandaloneProduct.DisplayName;
             labelExitMM.Text = "Exit the application, Ctrl+Alt+Shift+:";
