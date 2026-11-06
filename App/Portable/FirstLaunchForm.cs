@@ -28,7 +28,7 @@ internal sealed class FirstLaunchForm : System.Windows.Forms.Form
         ShowInTaskbar = !installingExistingPreferences;
         AutoScaleMode = AutoScaleMode.Dpi;
         AutoScaleDimensions = new SizeF(96, 96);
-        ClientSize = new Size(584, 342);
+        ClientSize = new Size(584, 426);
         Font = SystemFonts.MessageBoxFont;
         BackColor = SystemColors.Window;
         ForeColor = SystemColors.WindowText;
@@ -37,6 +37,17 @@ internal sealed class FirstLaunchForm : System.Windows.Forms.Form
 
         var content = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown,
             WrapContents = false, AutoScroll = true, Padding = new Padding(28, 24, 28, 8), TabStop = false };
+        var identity = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false, Margin = new Padding(0, 0, 0, 20), Padding = Padding.Empty, TabStop = false };
+        var brandMark = new PictureBox { Size = new Size(64, 64), SizeMode = PictureBoxSizeMode.Zoom,
+            Margin = new Padding(0, 0, 16, 0), TabStop = false, AccessibleRole = AccessibleRole.None,
+            Image = StandaloneBranding.CreateProductIconBitmap(new Size(128, 128)) };
+        var brandName = new Label { Text = "VEIL MWBP", AutoSize = true, UseMnemonic = false,
+            Font = new Font(Font.FontFamily, 20, FontStyle.Bold), Margin = new Padding(0, 14, 0, 0) };
+        identity.Controls.AddRange([brandMark, brandName]);
+        content.Controls.Add(identity);
+        Disposed += (_, _) => brandMark.Image?.Dispose();
         Label AddText(string text, int gap = 12, bool bold = false)
         {
             var label = new Label { Text = text, AutoSize = true, MaximumSize = new Size(508, 0),
