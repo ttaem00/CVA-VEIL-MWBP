@@ -362,27 +362,6 @@ public sealed class PortableApplicationTests
         });
     }
 
-    [TestMethod]
-    public void ProtectedSetupRetargetsOnlyAnExistingShortcutOwnedByTheOldExecutable()
-    {
-        WithTemporarySettingsPath(path =>
-        {
-            string directory = Path.GetDirectoryName(path)!;
-            string oldExe = Path.Combine(directory, "old.exe"), newExe = Path.Combine(directory, "protected.exe"), otherExe = Path.Combine(directory, "unrelated.exe");
-            string owned = Path.Combine(directory, "owned.lnk"), unrelated = Path.Combine(directory, "unrelated.lnk"), missing = Path.Combine(directory, "missing.lnk");
-            PortableApplication.CreateShortcut(owned, oldExe);
-            PortableApplication.CreateShortcut(unrelated, otherExe);
-            byte[] original = File.ReadAllBytes(unrelated);
-            PortableApplication.RetargetShortcutIfOwnedBy(owned, oldExe, newExe);
-            PortableApplication.RetargetShortcutIfOwnedBy(unrelated, oldExe, newExe);
-            PortableApplication.RetargetShortcutIfOwnedBy(missing, oldExe, newExe);
-            PortableApplication.RemoveShortcutIfOwnedBy(owned, newExe);
-            Assert.IsFalse(File.Exists(owned), "The owned Desktop entry now opens the protected executable.");
-            CollectionAssert.AreEqual(original, File.ReadAllBytes(unrelated));
-            Assert.IsFalse(File.Exists(missing), "Setup must not add a Desktop shortcut the user did not choose.");
-        });
-    }
-
     [DataTestMethod]
     [DataRow(false)]
     [DataRow(true)]

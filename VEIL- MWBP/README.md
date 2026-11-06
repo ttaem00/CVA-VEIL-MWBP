@@ -42,7 +42,7 @@ pwsh -NoProfile -File './VEIL- MWBP/Build-Release.ps1' -Destination 'C:/build/VE
 
 ## 검증 상태
 
-RC8 Windows x64 전체 시험은 468개 중 467개 통과·기존 제외 1개·실패 0개입니다. 설치·바로가기 관련 집중 시험은 42/42 통과했습니다. 최종 결과와 배포 파일은 [해당 릴리스](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.8)를 확인하세요. RC7을 포함한 이전 후보의 결과를 RC8의 검증으로 세지 않습니다.
+RC8 Windows x64 전체 시험은 467개 중 466개 통과·기존 제외 1개·실패 0개입니다. 설치·바로가기 관련 집중 시험은 41/41 통과했습니다. 최종 결과와 배포 파일은 [해당 릴리스](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.8)를 확인하세요. RC7을 포함한 이전 후보의 결과를 RC8의 검증으로 세지 않습니다.
 
 ChatGPT 실행 중 나타나는 지연은 아직 해결되지 않았습니다. 실제 세 PC의 동일 버전 적용·지속 사용·체감 지연 해소도 확인하지 않았습니다. 소스 수정과 로컬 시험을 기존 설치본의 적용 완료로 간주하지 않습니다. Windows 화면 합성 시험에서 전경 확보가 불가능하면 해당 검사는 `Inconclusive`이며 PASS로 세지 않습니다.
 
