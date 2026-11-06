@@ -7,11 +7,11 @@
   <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/download/mwb-v1.2.0-rc.10/VEIL-MWBP-Setup.exe"><strong>Windows x64 다운로드 ↓</strong></a>
   &nbsp;·&nbsp; <a href="https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/">소개 페이지 ↗</a>
 </p>
-<p align="center"><a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10">1.2.0-rc.10 · 미서명 배포 후보</a> · Windows 11 x64에서 확인</p>
+<p align="center"><a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10">버전 1.2.0-rc.10 · 변경 사항</a> · Windows 11 x64에서 확인</p>
 
 ## 시작하기
 
-1. **설치** — 각 PC에서 설치 EXE 실행 → **MWBP 설치** → Windows 승인.
+1. **설치** — 각 PC에서 내려받은 설치 파일 실행 → **MWBP 설치** → Windows 승인 완료.
 2. **연결** — **PC 찾기**에서 양쪽 확인 코드가 같으면 양쪽에서 승인.
 3. **배치** — 모니터를 실제 위치에 맞춰 끌어 붙이고 **적용**.
 
@@ -22,40 +22,74 @@
 
 ## 화면도, 키도, 파일도.
 
-- **화면은 자유롭게.** 모니터별 배치, 스냅과 이동 가능한 접경 표시.
-- **전환은 내 손에 맞게.** Caps Lock부터 여러 키 조합까지 직접 지정.
-- **파일은 필요한 PC로.** 클립보드 공유, 받는 PC를 고르는 파일 보내기, 중단된 전송 재개.
+- **화면은 자유롭게.** 모니터를 하나씩 끌어 배치하고, 맞닿은 가장자리로 이동하세요.
+- **전환은 내 손에 맞게.** PC를 바꾸거나 가장자리로 넘어갈 때 쓸 키를 직접 정하세요.
+- **파일은 필요한 PC로.** 복사한 내용을 함께 쓰고, 파일을 보낼 PC를 고르세요. 중단된 전송도 이어 보낼 수 있습니다.
 
-[도움말](https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/#help) · [문제 제보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/issues)
+[더 자세한 도움말](https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/#help) · [문제 제보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/issues)
+
+## 자주 묻는 질문
 
 <details>
-<summary><strong>권한·지원 안내</strong></summary>
+<summary><strong>PC 찾기에 다른 PC가 안 보여요.</strong></summary>
 
-- **미서명 배포 후보:** Windows 승인 창에 게시자가 ‘알 수 없음’으로 표시될 수 있습니다. [릴리스의 파일 출처와 SHA256](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10)을 확인하세요. Windows 11 x64에서 확인했으며, ARM64 실사용과 모든 PC 구성의 동작은 확인하지 않았습니다.
-- **관리자 화면 제어:** Windows 승인을 받아 SYSTEM 입력 서비스를 설치합니다. 연결된 PC에 관리자 화면의 입력 능력을 위임하며, 이 Windows 계정의 다른 앱이 권한을 악용할 수 있습니다. 정책으로 서비스가 금지돼도 일반 입력·연결·파일 공유는 별도로 사용할 수 있습니다.
-- **PC가 보이지 않을 때:** 두 PC에서 MWBP를 실행하고 네트워크 접근 허용을 확인하세요. **PC 찾기**에 상대 PC 이름이나 IPv4 주소를 직접 입력할 수도 있습니다. 양쪽 확인 코드 비교와 승인은 동일합니다.
-- **파일 자동 전송:** 기본으로 켜진 **자동 전송 300MB 제한**은 클립보드로 복사한 단일 파일에 적용하며, 정확히 300MB는 허용합니다. 큰 파일은 **파일 보내기…** 또는 드래그로 전송하세요. 파일 전송 허용은 별도 설정이며, 양쪽 PC에 같은 버전을 설치하세요.
-- **입력 복구:** **마우스 입력 복구**는 이 PC의 대체 커서를 끄고 입력 훅·연결을 다시 시작하도록 요청합니다. 공유가 잠시 끊기며 설정은 유지됩니다. Windows 마우스 키·숫자패드 설정은 바꾸지 않습니다. 별도 **Windows 커서 사용**은 마우스 키를 켜므로 숫자 키패드 동작에 영향을 줄 수 있습니다. 특정 지연의 해결을 보증하지 않으며, ChatGPT 실행 중 지연의 원인과 지속적인 해소는 아직 확인하지 않았습니다.
-- **실행·제거:** 바탕화면이나 시작 메뉴에서 **VEIL MWBP**를 찾으세요. 새 설치는 로그인 시 자동 시작이 기본이며 업데이트는 기존 선택을 유지합니다. Windows **설치된 앱** 또는 앱 설정에서 제거하고, 연결·설정 보존 여부를 선택할 수 있습니다.
-- **설치 구성:** PowerToys나 .NET을 별도로 설치할 필요가 없습니다. EXE에 .NET 10·Windows Desktop 런타임이 포함됩니다. 버전은 앱 설정 창 제목과 **정보**에서 확인하세요.
+두 PC에서 MWBP를 켜고, Windows 방화벽에서 MWBP의 네트워크 사용을 허용했는지 확인하세요. 계속 보이지 않으면 **PC 찾기**에 상대 PC 이름이나 IPv4 주소를 입력하세요.
+
+연결할 때는 양쪽 화면의 확인 코드가 같은지 확인한 뒤 양쪽에서 승인하세요.
 
 </details>
 
 <details>
-<summary><strong>개발·빌드 안내</strong></summary>
+<summary><strong>마우스가 느리거나 커서가 안 보여요.</strong></summary>
 
-Windows · PowerShell 7 · .NET SDK **10.0.403** (`global.json` 고정).
+느려지거나 커서가 안 보이는 PC의 설정에서 **마우스 입력 복구**를 누르세요. 대체 커서를 끄고 마우스 공유 연결을 다시 시도합니다. 조작이 잠시 끊길 수 있지만 설정은 그대로입니다.
 
-```powershell
-pwsh -NoProfile -File ./build.ps1 -RunTests
-pwsh -NoProfile -File './VEIL- MWBP/Build-Release.ps1' -Destination 'C:/build/VEIL- MWBP'
-```
+버튼으로 해결되지 않는 지연도 있습니다. **Windows 커서 사용**은 별도 설정이며, Windows 마우스 키를 켜므로 숫자 키패드 동작에 영향을 줄 수 있습니다.
 
-[배포 안내](<VEIL- MWBP/README.md>) · [정적 사이트 유지보수](docs/README.md)
+</details>
 
-출력 폴더는 비어 있어야 합니다. 단일 설치 EXE·SHA256·라이선스·설치 안내를 생성하며 내부 이름과 저장 경로는 기존 MWBP와 호환되게 유지합니다. 사용자는 SDK나 비공개 저장소 접근이 필요하지 않습니다.
+<details>
+<summary><strong>300MB보다 큰 파일은 어떻게 보내나요?</strong></summary>
 
-자동 시험 통과와 실제 세 PC 사용 확인은 구분합니다. Windows 화면 합성 시험은 시험 창이 전경을 확보하지 못하면 `Inconclusive`로 남습니다. 버전별 변경·검증 범위는 [릴리스](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10)를 확인하세요. 공개 소스에 실제 사용자 설정·보안 키·전송 기록·개인 PC 진단 자료를 포함하지 않습니다.
+큰 파일은 **파일 보내기…** 메뉴에서 받을 PC와 파일을 골라 보내세요. 드래그로도 보낼 수 있습니다. 양쪽 PC에 같은 버전을 설치하고 파일 전송을 허용해야 합니다.
+
+기본으로 켜진 **자동 전송 300MB 제한**은 복사한 파일 하나가 300MB를 넘을 때 자동 공유를 막는 설정입니다. 정확히 300MB인 파일은 허용하며, 파일 전송 전체의 크기 제한은 아닙니다.
+
+</details>
+
+<details>
+<summary><strong>업데이트해도 연결과 설정이 남아 있나요?</strong></summary>
+
+기존 연결·모니터 배치·단축키·전송 기록과 로그인 시 자동 실행 선택을 유지합니다. 새로 설치할 때는 자동 실행이 기본으로 켜집니다.
+
+설치된 버전은 설정 창 제목이나 **정보**에서 확인하세요.
+
+</details>
+
+<details>
+<summary><strong>관리자 승인 화면에서 조작이 멈춰요.</strong></summary>
+
+조작을 받는 PC에서 설정을 열고 **MWBP** 탭의 **설치 복구…** 버튼을 누르세요. Windows 승인은 그 PC에서 직접 진행하세요.
+
+이 설정은 연결된 PC가 관리자 화면을 조작하도록 허용합니다. 같은 Windows 계정의 다른 앱이 이 권한을 악용할 수도 있습니다. Windows 정책으로 허용되지 않아도 일반 마우스 공유와 파일 전송은 사용할 수 있습니다.
+
+</details>
+
+<details>
+<summary><strong>왜 ‘알 수 없는 게시자’라고 나오나요?</strong></summary>
+
+설치 파일에 제작자를 확인하는 디지털 서명이 없기 때문입니다. Windows가 게시자를 확인하지 못해 표시하는 안내입니다.
+
+설치 전에 [다운로드 파일 정보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10)에서 파일 이름과 출처를 확인하세요.
+
+</details>
+
+<details>
+<summary><strong>어떤 Windows PC에서 쓸 수 있나요?</strong></summary>
+
+Windows 11 64비트(x64)에서 동작을 확인했습니다. 다른 Windows 구성과 ARM64에서는 동작을 확인하지 않았습니다.
+
+PowerToys나 .NET은 따로 설치하지 않아도 됩니다. 설치 후 바탕화면이나 시작 메뉴에서 **VEIL MWBP**를 찾아 실행하세요.
 
 </details>
 
@@ -65,4 +99,4 @@ Microsoft PowerToys의 Mouse Without Borders를 기반으로 수정한 **비공�
 
 MIT [aeae1/MouseWithoutBorders-Portable](https://github.com/aeae1/MouseWithoutBorders-Portable)의 `e9feba6da37b35a763a638a7e071c7189180cc14`를 기반으로 합니다. [LICENSE](LICENSE) · [NOTICE](NOTICE.md) · [제3자 고지](<VEIL- MWBP/THIRD-PARTY-NOTICES.txt>)와 원본 저작권을 보존합니다. Input Director는 공개 UX 자료만 참고했으며 독점 코드를 사용하지 않았습니다.
 
-VEIL의 V와 MWBP 마우스 표식은 앱·설치 파일·소개 페이지에서 함께 사용합니다. [브랜드 벡터 원본](docs/assets/veil-mwbp-color.svg) · [크기별 적용 기준](docs/README.md).
+[소스에서 빌드하기](<VEIL- MWBP/README.md>)
