@@ -188,6 +188,7 @@ internal partial class FrmMatrix
         checkBoxTransferFile.Checked = Setting.Values.TransferFile;
         if (limitAutomaticClipboardFiles != null) limitAutomaticClipboardFiles.Checked = Setting.Values.LimitAutomaticClipboardFileSize;
         checkBoxHideMouse.Checked = Setting.Values.HideMouse;
+        if (blockFullscreenSwitching != null) blockFullscreenSwitching.Checked = Setting.Values.DisableEasyMouseWhenForegroundWindowIsFullscreen;
         checkBoxBlockScreenSaver.Checked = Setting.Values.BlockScreenSaver;
         checkBoxMouseMoveRelatively.Checked = Setting.Values.MoveMouseRelatively;
         if (checkBoxEnableKeyboardShortcuts != null)

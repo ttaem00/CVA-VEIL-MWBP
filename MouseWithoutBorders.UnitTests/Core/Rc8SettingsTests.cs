@@ -835,19 +835,21 @@ public sealed class Rc8SettingsTests
                 StringAssert.Contains(tips.GetToolTip(inputRecovery), "restarts input hooks");
                 Assert.AreEqual(tips.GetToolTip(inputRecovery), inputRecovery.AccessibleDescription);
                 var sharedBeforeRecovery = System.Text.Json.JsonSerializer.Serialize(Setting.Values.SharedSnapshot());
+                bool cursorBeforeRecovery = Setting.Values.DrawMouse;
                 int pendingReconnect = InitAndCleanup.PleaseReopenSocket;
+                bool readRecovery = InitAndCleanup.ReopenSocketDueToReadError;
                 try
                 {
                     InitAndCleanup.PleaseReopenSocket = 0;
                     inputRecovery.PerformClick();
-                    Assert.IsFalse(Setting.Values.DrawMouse);
+                    Assert.AreEqual(cursorBeforeRecovery, Setting.Values.DrawMouse, "Input recovery preserves cursor settings.");
                     Assert.AreEqual(InitAndCleanup.REOPEN_WHEN_HOTKEY, InitAndCleanup.PleaseReopenSocket);
                     Assert.AreEqual(sharedBeforeRecovery, System.Text.Json.JsonSerializer.Serialize(Setting.Values.SharedSnapshot()),
                         "Recovery preserves the connection layout, shortcuts and sharing preferences.");
                     Setting.Values.SaveSettingsSynchronously();
-                    Assert.IsFalse(PortableSettingsStore.Read(path).Properties.DrawMouseCursor);
+                    Assert.AreEqual(cursorBeforeRecovery, PortableSettingsStore.Read(path).Properties.DrawMouseCursor);
                 }
-                finally { InitAndCleanup.PleaseReopenSocket = pendingReconnect; }
+                finally { InitAndCleanup.PleaseReopenSocket = pendingReconnect; InitAndCleanup.ReopenSocketDueToReadError = readRecovery; }
                 var divider = Descendants(other).Single(c => c.Name == "keyboardShortcutDivider");
                 foreach (var width in new[] { originalSize.Width, originalSize.Width + 240, originalSize.Width * 2 / 3, originalSize.Width })
                 {

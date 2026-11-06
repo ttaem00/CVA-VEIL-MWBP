@@ -1205,6 +1205,7 @@ internal static class Common
 
     internal static void ReopenSockets(bool byUser)
     {
+        if (MainForm == null || MainForm.IsDisposed) return;
         DoSomethingInUIThread(
             () =>
         {
@@ -1238,11 +1239,7 @@ internal static class Common
         },
             true);
 
-        if (Sk == null)
-        {
-            return;
-        }
-
+        // Input recovery must still run when reopening the network listener fails.
         Common.DoSomethingInTheInputCallbackThread(() =>
         {
             if (Common.Hook != null)
@@ -1253,6 +1250,9 @@ internal static class Common
 
             if (byUser)
             {
+                MachineStuff.NewDesMachineID = DesMachineID = MachineID;
+                MachineStuff.SwitchLocation.Count = 0;
+                InputSimulation.ResetSystemKeyFlags();
                 Common.InputCallbackForm.Close();
                 Common.InputCallbackForm = null;
                 Program.StartInputCallbackThread();
@@ -1586,31 +1586,16 @@ internal static class Common
             return false;
         }
 
-        if (NativeMethods.SHQueryUserNotificationState(out var userNotificationState) != 0)
-        {
-            Logger.LogDebug($"SHQueryUserNotificationState failed with error : {Marshal.GetLastWin32Error()}");
-            return false;
-        }
-
-        switch (userNotificationState)
-        {
-            // An application running in full screen mode, check if the foreground window is
-            // listed as ignored in the settings.
-            case NativeMethods.USER_NOTIFICATION_STATE.BUSY:
-            case NativeMethods.USER_NOTIFICATION_STATE.RUNNING_D3D_FULL_SCREEN:
-            case NativeMethods.USER_NOTIFICATION_STATE.PRESENTATION_MODE:
-                return !IsAppIgnoredByEasyMouseFullscreenCheck(foregroundHandle);
-
-            // No full screen app running.
-            case NativeMethods.USER_NOTIFICATION_STATE.NOT_PRESENT:
-            case NativeMethods.USER_NOTIFICATION_STATE.ACCEPTS_NOTIFICATIONS:
-            case NativeMethods.USER_NOTIFICATION_STATE.QUIET_TIME:
-            // Cannot determine
-            case NativeMethods.USER_NOTIFICATION_STATE.APP:
-            default:
-                return false;
-        }
+        // Notification suppression can outlive the game or apply to a different window.
+        // Test the current foreground window, so returning to an ordinary window unblocks immediately.
+        if (foregroundHandle == IntPtr.Zero || !NativeMethods.GetWindowRect(foregroundHandle, out var window)) return false;
+        var bounds = Screen.FromHandle(foregroundHandle).Bounds;
+        return CoversScreen(Rectangle.FromLTRB(window.Left, window.Top, window.Right, window.Bottom), bounds)
+            && !IsAppIgnoredByEasyMouseFullscreenCheck(foregroundHandle);
     }
+
+    internal static bool CoversScreen(Rectangle window, Rectangle screen) =>
+        screen.Width > 0 && screen.Height > 0 && window.Contains(screen);
 
     /// <summary>
     /// Check if a machine switch triggered by EasyMouse would be allowed to proceed due to other settings.
