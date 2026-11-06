@@ -89,6 +89,7 @@ namespace MouseWithoutBorders.Class
 
         public uint MachineId { get; set; }
         internal SharedSettingsSnapshot ReceivedSharedSettings { get; set; }
+        internal (byte[] Bytes, int Count)? PendingHeader { get; set; }
 
         public IPAddress Address { get; set; }
 
@@ -562,7 +563,6 @@ namespace MouseWithoutBorders.Class
 
         internal static DATA TcpReceiveData(TcpSk tcp, out int bytesReceived)
         {
-            byte[] buf = new byte[Package.PACKAGE_SIZE_EX];
             Stream decryptedStream = tcp.DecryptedStream;
 
             if (tcp.BackingSocket == null || !tcp.BackingSocket.Connected || decryptedStream == null)
@@ -576,17 +576,10 @@ namespace MouseWithoutBorders.Class
 
             try
             {
-                bytesReceived = decryptedStream.ReadEx(buf, 0, Package.PACKAGE_SIZE);
-
-                if (bytesReceived != Package.PACKAGE_SIZE)
-                {
-                    buf[0] = bytesReceived == 0 ? (byte)PackageType.Error : (byte)PackageType.Invalid;
-                }
-                else
-                {
-                    ProcessReceivedDataEx(buf);
-                }
-
+                var pending = tcp.PendingHeader;
+                tcp.PendingHeader = null;
+                bytesReceived = pending?.Count ?? 0;
+                byte[] buf = pending?.Bytes ?? ReadPackageHeader(tcp, out bytesReceived);
                 package = new DATA(buf);
 
                 if (package.Type == PackageType.SharedSettings)
@@ -617,6 +610,15 @@ namespace MouseWithoutBorders.Class
             }
 
             return package;
+        }
+
+        internal static byte[] ReadPackageHeader(TcpSk tcp, out int bytesReceived)
+        {
+            byte[] buf = new byte[Package.PACKAGE_SIZE_EX];
+            bytesReceived = tcp.DecryptedStream.ReadEx(buf, 0, Package.PACKAGE_SIZE);
+            if (bytesReceived == Package.PACKAGE_SIZE) ProcessReceivedDataEx(buf);
+            else buf[0] = bytesReceived == 0 ? (byte)PackageType.Error : (byte)PackageType.Invalid;
+            return buf;
         }
 
         private static void PreProcessData(PackageType type)
@@ -1289,6 +1291,8 @@ namespace MouseWithoutBorders.Class
             * */
 
             // WSAECONNRESET
+            var socketError = e as SocketException ?? (e as IOException)?.InnerException as SocketException;
+            if (socketError != null) e = new ExpectedSocketException(socketError);
             if (e is ExpectedSocketException se && se.ShouldReconnect)
             {
                 InitAndCleanup.PleaseReopenSocket = InitAndCleanup.REOPEN_WHEN_WSAECONNRESET;
