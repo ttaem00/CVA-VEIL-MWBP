@@ -12,7 +12,7 @@ namespace MouseWithoutBorders;
 
 /// <summary>
 /// Applies the standalone executable's product icon to its UI surfaces.
-/// App/Veil.png and App/Veil.ico are generated from the shared VEIL V with the MWBP link badge.
+/// App/Veil.png and App/Veil.ico are generated from the shared VEIL V with the MWBP mouse badge.
 /// The build embeds the multi-size ICO for the executable, title bars, and tray icon.
 /// </summary>
 internal static class StandaloneBranding
