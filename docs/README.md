@@ -2,7 +2,7 @@
 
 `index.html`과 `styles.css`를 그대로 제공하는 정적 사이트입니다. Node·번들러·JavaScript·외부 글꼴·사용자 추적을 사용하지 않습니다. GitHub Pages의 `main` 브랜치 `/docs` 게시를 대상으로 하며, 실제 Pages 설정·배포는 저장소 관리자가 별도로 수행합니다.
 
-- 다운로드와 릴리스 링크는 `mwb-v1.2.0-rc.7`에 명시적으로 고정합니다. prerelease를 건너뛰는 `latest` 링크로 바꾸지 않습니다.
+- 다운로드와 릴리스 링크는 `mwb-v1.2.0-rc.8`에 명시적으로 고정합니다. prerelease를 건너뛰는 `latest` 링크로 바꾸지 않습니다.
 - `assets/veil.png`는 `App/Veil.png`의 byte-for-byte 복사본입니다. SHA256은 `BF63BE1B0CDC734AC3ACD2A7FA7820A8FB00188A0A2D3F045094920B0CE46A1E`입니다. 확정 로고를 다시 그리거나 trace·recolor하지 않습니다.
 - 화면 배치 그림은 HTML/CSS로 만든 **개념도**이며 앱 캡처가 아닙니다. 개인 경로가 노출된 로컬 시험 PNG를 공개 자료로 사용하지 않습니다.
 - 의미 구조·본문 건너뛰기·키보드 포커스·native FAQ를 유지합니다. 좁은 화면과 200% 확대에서 실제 렌더를 확인하고, source 검사만으로 시각 품질을 PASS 처리하지 않습니다.

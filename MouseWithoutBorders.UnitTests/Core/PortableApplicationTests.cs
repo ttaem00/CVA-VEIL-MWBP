@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Drawing;
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 using Microsoft.PowerToys.Settings.UI.Library;
@@ -382,6 +383,121 @@ public sealed class PortableApplicationTests
         });
     }
 
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void InstallationMigratesTheProductNameAndRefreshesAlreadyProtectedShortcutIcons(bool alreadyProtected)
+    {
+        WithTemporarySettingsPath(path =>
+        {
+            string root = Path.GetDirectoryName(path)!;
+            string programs = Path.Combine(root, "Programs"), desktop = Path.Combine(root, "Desktop");
+            string oldExe = Path.Combine(root, "old.exe"), executable = Path.Combine(root, "protected.exe");
+            foreach (string directory in new[] { programs, desktop })
+            {
+                PortableApplication.CreateShortcut(Path.Combine(directory, "Mouse Without Borders Plus.lnk"), oldExe);
+                if (alreadyProtected)
+                {
+                    string current = Path.Combine(directory, PortableApplication.ShortcutName);
+                    PortableApplication.CreateShortcut(current, oldExe);
+                    ShortcutProperty(current, "TargetPath", executable); // Correct target, stale icon and description.
+                    ShortcutProperty(current, "Description", "previous product name");
+                }
+            }
+            using (var transaction = new PortableInstallTransaction())
+            {
+                PortableApplication.InstallShortcuts(transaction, executable, programs, desktop, oldExe);
+                transaction.Complete();
+            }
+            Assert.AreEqual("VEIL MWBP.lnk", PortableApplication.ShortcutName, "The searchable launcher must use the product's actual name.");
+            foreach (string directory in new[] { programs, desktop })
+            {
+                string current = Path.Combine(directory, PortableApplication.ShortcutName);
+                Assert.IsFalse(File.Exists(Path.Combine(directory, "Mouse Without Borders Plus.lnk")));
+                Assert.AreEqual(executable, ShortcutProperty(current, "TargetPath"), true, CultureInfo.InvariantCulture);
+                string icon = ShortcutProperty(current, "IconLocation");
+                int separator = icon.LastIndexOf(',');
+                Assert.IsTrue(separator > 0);
+                Assert.AreEqual("0", icon[(separator + 1)..].Trim());
+                Assert.AreEqual(executable, icon[..separator].Trim().Trim('"'), true, CultureInfo.InvariantCulture);
+                Assert.AreEqual(root, ShortcutProperty(current, "WorkingDirectory"), true, CultureInfo.InvariantCulture);
+                StringAssert.Contains(ShortcutProperty(current, "Description"), "VEIL MWBP");
+            }
+        });
+    }
+
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void FailedShortcutMigrationRestoresBothNamesInBothLocations(bool existingCurrentName)
+    {
+        WithTemporarySettingsPath(path =>
+        {
+            string root = Path.GetDirectoryName(path)!;
+            string programs = Path.Combine(root, "Programs"), desktop = Path.Combine(root, "Desktop");
+            string oldExe = Path.Combine(root, "old.exe"), executable = Path.Combine(root, "protected.exe");
+            var before = new Dictionary<string, byte[]?>();
+            foreach (string directory in new[] { programs, desktop })
+            {
+                string legacy = Path.Combine(directory, "Mouse Without Borders Plus.lnk");
+                string current = Path.Combine(directory, PortableApplication.ShortcutName);
+                PortableApplication.CreateShortcut(legacy, oldExe);
+                if (existingCurrentName) PortableApplication.CreateShortcut(current, oldExe);
+                before.Add(legacy, File.ReadAllBytes(legacy));
+                before.Add(current, existingCurrentName ? File.ReadAllBytes(current) : null);
+            }
+            using (var transaction = new PortableInstallTransaction())
+                PortableApplication.InstallShortcuts(transaction, executable, programs, desktop, oldExe);
+            foreach (var entry in before)
+            {
+                if (entry.Value == null) Assert.IsFalse(File.Exists(entry.Key), "Rollback must remove the newly introduced launcher.");
+                else CollectionAssert.AreEqual(entry.Value, File.ReadAllBytes(entry.Key), "Rollback must restore the original .lnk bytes, including user metadata.");
+            }
+        });
+    }
+
+    [TestMethod]
+    public void ShortcutInstallationAndUninstallPreserveUnrelatedTargetsAndRemoveOnlyOwnedNames()
+    {
+        WithTemporarySettingsPath(path =>
+        {
+            string root = Path.GetDirectoryName(path)!;
+            string programs = Path.Combine(root, "Programs"), desktop = Path.Combine(root, "Desktop");
+            string executable = Path.Combine(root, "protected.exe"), unrelated = Path.Combine(root, "unrelated.exe");
+            string programsLegacy = Path.Combine(programs, "Mouse Without Borders Plus.lnk");
+            string desktopCurrent = Path.Combine(desktop, PortableApplication.ShortcutName);
+            string desktopLegacy = Path.Combine(desktop, "Mouse Without Borders Plus.lnk");
+            PortableApplication.CreateShortcut(programsLegacy, unrelated);
+            PortableApplication.CreateShortcut(desktopCurrent, unrelated);
+            PortableApplication.CreateShortcut(desktopLegacy, executable);
+            byte[] programsBefore = File.ReadAllBytes(programsLegacy), desktopBefore = File.ReadAllBytes(desktopCurrent);
+            byte[] legacyBefore = File.ReadAllBytes(desktopLegacy);
+            var attributes = File.GetAttributes(programsLegacy);
+            File.SetAttributes(programsLegacy, attributes | FileAttributes.ReadOnly);
+            try
+            {
+                using (var transaction = new PortableInstallTransaction())
+                {
+                    PortableApplication.InstallShortcuts(transaction, executable, programs, desktop);
+                    transaction.Complete();
+                }
+                Assert.IsTrue(File.Exists(Path.Combine(programs, PortableApplication.ShortcutName)));
+                CollectionAssert.AreEqual(legacyBefore, File.ReadAllBytes(desktopLegacy), "An unrelated canonical launcher must leave its existing alternative intact.");
+                CollectionAssert.AreEqual(programsBefore, File.ReadAllBytes(programsLegacy));
+                CollectionAssert.AreEqual(desktopBefore, File.ReadAllBytes(desktopCurrent));
+                Assert.IsTrue(File.GetAttributes(programsLegacy).HasFlag(FileAttributes.ReadOnly));
+                Assert.IsFalse(Directory.EnumerateFiles(root, "*.rollback-*", SearchOption.AllDirectories).Any(),
+                    "Unrelated read-only launchers must not be backed up or leave transaction debris.");
+                PortableApplication.RemoveProductShortcuts(executable, programs, desktop);
+                Assert.IsFalse(File.Exists(Path.Combine(programs, PortableApplication.ShortcutName)));
+                Assert.IsFalse(File.Exists(desktopLegacy), "Uninstall must also remove the old product name when its target is this installed copy.");
+                CollectionAssert.AreEqual(programsBefore, File.ReadAllBytes(programsLegacy));
+                CollectionAssert.AreEqual(desktopBefore, File.ReadAllBytes(desktopCurrent));
+            }
+            finally { if (File.Exists(programsLegacy)) File.SetAttributes(programsLegacy, attributes); }
+        });
+    }
+
     [TestMethod]
     public void DownloadedInstallerKeepsCanonicalPreferencesAndRecoveryByteForByte()
     {
@@ -568,6 +684,29 @@ public sealed class PortableApplicationTests
         return JsonSerializer.Deserialize<MouseWithoutBordersSettings>(
             File.ReadAllText(settingsPath),
             SettingsUtils.SerializerOptions)!;
+    }
+
+    private static string ShortcutProperty(string path, string property, string? value = null)
+    {
+        var shellType = Type.GetTypeFromProgID("WScript.Shell")!;
+        object? shell = null, shortcut = null;
+        try
+        {
+            shell = Activator.CreateInstance(shellType)!;
+            shortcut = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, [path])!;
+            var type = shortcut.GetType();
+            if (value != null)
+            {
+                type.InvokeMember(property, BindingFlags.SetProperty, null, shortcut, [value]);
+                type.InvokeMember("Save", BindingFlags.InvokeMethod, null, shortcut, Array.Empty<object>());
+            }
+            return type.InvokeMember(property, BindingFlags.GetProperty, null, shortcut, null) as string ?? string.Empty;
+        }
+        finally
+        {
+            if (shortcut != null && Marshal.IsComObject(shortcut)) Marshal.FinalReleaseComObject(shortcut);
+            if (shell != null && Marshal.IsComObject(shell)) Marshal.FinalReleaseComObject(shell);
+        }
     }
 
     private static void WithTemporarySettingsPath(Action<string> action)
