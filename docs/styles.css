@@ -37,7 +37,6 @@ nav a:hover { text-decoration: underline; }
 .primary { background: var(--ink); color: var(--paper); }
 .primary:hover { background: #2a3d51; }
 .text-link { display: inline-flex; align-items: center; gap: .65rem; min-height: 2.75rem; font-size: .86rem; }
-.download-meta { margin-top: .95rem; color: var(--muted); font-size: .8125rem; }
 .release-note { display: inline-block; min-height: 2.75rem; padding-block: .55rem; color: var(--muted); font-size: .8125rem; }
 .product-shot { min-width: 0; }
 .screenshot-link { display: block; border-radius: .65rem; cursor: zoom-in; }
