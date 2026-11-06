@@ -5,19 +5,19 @@
 <p align="center">Windows PC 사이에서 마우스·키보드·클립보드·파일을 공유하는 독립형 앱</p>
 
 <p align="center">
-  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.6"><img src="https://img.shields.io/badge/version-1.2.0--rc.6-172231?style=flat-square" alt="1.2.0-rc.6 배포 후보"></a>
+  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.7"><img src="https://img.shields.io/badge/version-1.2.0--rc.7-172231?style=flat-square" alt="1.2.0-rc.7 배포 후보"></a>
   <img src="https://img.shields.io/badge/Windows-x64-172231?style=flat-square" alt="Windows x64">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8b6b35?style=flat-square" alt="MIT 라이선스"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/download/mwb-v1.2.0-rc.6/VEIL-MWBP-Setup.exe"><strong>Windows x64 설치 다운로드 →</strong></a><br>
+  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/download/mwb-v1.2.0-rc.7/VEIL-MWBP-Setup.exe"><strong>Windows x64 설치 다운로드 →</strong></a><br>
   <a href="https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/">제품 사이트</a> · <a href="#시작하기">시작하기</a> · <a href="#할-수-있는-일">기능</a> · <a href="#알아둘-점">지원 범위</a> · <a href="https://ttaem.com">ttaem.com</a>
 </p>
 
 **PowerToys나 .NET을 따로 설치할 필요가 없습니다.** `VEIL-MWBP-Setup.exe` 하나로 설치하며, 기존 연결·모니터 배치·단축키·전송 기록을 유지합니다. 앱에서는 **Mouse Without Borders Plus / MWBP**로 표시합니다.
 
-> **서명되지 않은 배포 후보(RC)입니다.** Windows 승인 창에 게시자가 ‘알 수 없음’으로 표시될 수 있습니다. [해당 버전의 릴리스](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.6)에서 파일 출처와 SHA256을 확인하세요. 실제 확인한 환경은 Windows 11 x64이며, 모든 PC 구성의 동작이나 지연 해소를 보장하지 않습니다.
+> **서명되지 않은 배포 후보(RC)입니다.** Windows 승인 창에 게시자가 ‘알 수 없음’으로 표시될 수 있습니다. [해당 버전의 릴리스](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.7)에서 파일 출처와 SHA256을 확인하세요. 실제 확인한 환경은 Windows 11 x64이며, 모든 PC 구성의 동작이나 지연 해소를 보장하지 않습니다.
 
 ## 시작하기
 

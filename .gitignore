@@ -34,4 +34,5 @@ Thumbs.db
 
 # Local development record and downloadable release bundles
 .codex-work/
+.runtime/
 Releases/
