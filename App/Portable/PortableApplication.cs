@@ -32,8 +32,8 @@ internal static class PortableApplication
     internal const string AppModePortable = "Portable";
     private const string StartupRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string StartupValueName = "MouseWithoutBordersPlus";
-    private const string StartMenuShortcutName = "Mouse Without Borders Plus.lnk";
-    private const string DesktopShortcutName = "Mouse Without Borders Plus.lnk";
+    internal const string ShortcutName = "VEIL MWBP.lnk";
+    private const string LegacyShortcutName = "Mouse Without Borders Plus.lnk";
 
     internal static bool IsInstalledCopy => PrivilegedInput.IsProtectedCopy;
 
@@ -120,7 +120,8 @@ internal static class PortableApplication
         string sourceSettings = SelectInstallSource(CurrentSettingsPath, SettingsPathForExecutable(LegacyExecutable), targetSettings,
             preserveCurrentPreferences);
         bool moving = sourceSettings != null && !sourceSettings.Equals(targetSettings, StringComparison.OrdinalIgnoreCase);
-        bool startup = IsStartWithWindowsEnabled(CurrentExecutablePath, PrivilegedInput.ProtectedExecutable, LegacyExecutable);
+        bool startup = newInstallation && sourceSettings == null && !File.Exists(targetSettings) && !File.Exists(targetSettings + ".bak")
+            || IsStartWithWindowsEnabled(CurrentExecutablePath, PrivilegedInput.ProtectedExecutable, LegacyExecutable);
         using var transaction = new PortableInstallTransaction();
         if (preserveCurrentPreferences) DurableTransfers.PrepareInstall();
         try
@@ -134,15 +135,9 @@ internal static class PortableApplication
             await installer.WaitForExitAsync();
             if (installer.ExitCode != 0) throw new IOException("Protected input setup did not complete (" + installer.ExitCode + ").");
             TrackUserInstallEntries(transaction);
-            CreateStartMenuShortcut(PrivilegedInput.ProtectedExecutable);
-            string desktop = GetDesktopShortcutPath();
-            if (newInstallation && sourceSettings == null && !File.Exists(desktop))
-                CreateShortcut(desktop, PrivilegedInput.ProtectedExecutable);
-            else
-            {
-                RetargetShortcutIfOwnedBy(desktop, CurrentExecutablePath, PrivilegedInput.ProtectedExecutable);
-                RetargetShortcutIfOwnedBy(desktop, LegacyExecutable, PrivilegedInput.ProtectedExecutable);
-            }
+            InstallShortcuts(transaction, PrivilegedInput.ProtectedExecutable,
+                Environment.GetFolderPath(Environment.SpecialFolder.Programs),
+                Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), CurrentExecutablePath, LegacyExecutable);
             SetStartWithWindows(startup, PrivilegedInput.ProtectedExecutable);
             RegisterInstalledApplication(transaction, Registry.CurrentUser);
             ScheduleInstalledLaunchAfterExit(PrivilegedInput.ProtectedExecutable, PrivilegedInput.ProtectedDirectory,
@@ -248,8 +243,8 @@ internal static class PortableApplication
                 ?? throw new IOException("Windows did not start preference cleanup.");
         }
         RemoveStartupEntryIfOwnedBy(executablePath);
-        RemoveStartMenuShortcut();
-        RemoveDesktopShortcut();
+        RemoveProductShortcuts(executablePath, Environment.GetFolderPath(Environment.SpecialFolder.Programs),
+            Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
     }
 
     internal static (string Files, string Preferences) CreateUninstallCleanupScripts(string executablePath, int processId, bool deletePreferences, string userSid)
@@ -400,8 +395,6 @@ internal static class PortableApplication
 
     private static void TrackUserInstallEntries(PortableInstallTransaction transaction)
     {
-        transaction.TrackFile(GetStartMenuShortcutPath());
-        transaction.TrackFile(GetDesktopShortcutPath());
         using var startupKey = Registry.CurrentUser.OpenSubKey(StartupRegistryPath);
         object previous = startupKey?.GetValue(StartupValueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
         var kind = previous == null ? RegistryValueKind.String : startupKey.GetValueKind(StartupValueName);
@@ -455,26 +448,35 @@ internal static class PortableApplication
         }
     }
 
-    private static string GetStartMenuShortcutPath()
+    internal static void InstallShortcuts(PortableInstallTransaction transaction, string executablePath,
+        string programsDirectory, string desktopDirectory, params string[] previousExecutables)
     {
-        return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Microsoft",
-            "Windows",
-            "Start Menu",
-            "Programs",
-            StartMenuShortcutName);
+        var ownedExecutables = previousExecutables.Append(executablePath).ToArray();
+        foreach (string directory in new[] { programsDirectory, desktopDirectory })
+        {
+            string shortcut = Path.Combine(directory, ShortcutName), legacy = Path.Combine(directory, LegacyShortcutName);
+            // Leave a user's unrelated shortcut and its legacy alternative intact.
+            if (File.Exists(shortcut) && !ownedExecutables.Any(executable => ShortcutIsOwnedBy(shortcut, executable))) continue;
+            transaction.TrackFile(shortcut);
+            CreateShortcut(shortcut, executablePath);
+            if (ownedExecutables.Any(executable => ShortcutIsOwnedBy(legacy, executable)))
+            {
+                transaction.TrackFile(legacy);
+                File.Delete(legacy);
+            }
+        }
+        SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero); // Refresh shell icon associations after replacing an executable.
     }
 
-    private static void CreateStartMenuShortcut(string executablePath)
+    internal static void RemoveProductShortcuts(string executablePath, string programsDirectory, string desktopDirectory)
     {
-        CreateShortcut(GetStartMenuShortcutPath(), executablePath);
+        foreach (string directory in new[] { programsDirectory, desktopDirectory })
+            foreach (string name in new[] { ShortcutName, LegacyShortcutName })
+                RemoveShortcutIfOwnedBy(Path.Combine(directory, name), executablePath);
     }
 
-    private static string GetDesktopShortcutPath()
-    {
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), DesktopShortcutName);
-    }
+    [DllImport("shell32.dll")]
+    private static extern void SHChangeNotify(uint eventId, uint flags, IntPtr item1, IntPtr item2);
 
     internal static void CreateShortcut(string shortcutPath, string executablePath)
     {
@@ -497,7 +499,7 @@ internal static class PortableApplication
             shortcutType.InvokeMember("TargetPath", BindingFlags.SetProperty, null, shortcut, new object[] { executablePath });
             shortcutType.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, shortcut, new object[] { Path.GetDirectoryName(executablePath)! });
             shortcutType.InvokeMember("IconLocation", BindingFlags.SetProperty, null, shortcut, new object[] { executablePath + ",0" });
-            shortcutType.InvokeMember("Description", BindingFlags.SetProperty, null, shortcut, new object[] { "Open Mouse Without Borders" });
+            shortcutType.InvokeMember("Description", BindingFlags.SetProperty, null, shortcut, new object[] { "VEIL MWBP — Mouse Without Borders Plus" });
             shortcutType.InvokeMember("Save", BindingFlags.InvokeMethod, null, shortcut, Array.Empty<object>());
         }
         finally
@@ -514,17 +516,9 @@ internal static class PortableApplication
         }
     }
 
-    private static void RemoveStartMenuShortcut() => RemoveShortcutIfOwnedBy(GetStartMenuShortcutPath(), CurrentExecutablePath);
-    private static void RemoveDesktopShortcut() => RemoveShortcutIfOwnedBy(GetDesktopShortcutPath(), CurrentExecutablePath);
-
     internal static void RemoveShortcutIfOwnedBy(string shortcutPath, string executablePath)
     {
         if (ShortcutIsOwnedBy(shortcutPath, executablePath)) File.Delete(shortcutPath);
-    }
-
-    internal static void RetargetShortcutIfOwnedBy(string shortcutPath, string previousExecutable, string executable)
-    {
-        if (ShortcutIsOwnedBy(shortcutPath, previousExecutable)) CreateShortcut(shortcutPath, executable);
     }
 
     private static bool ShortcutIsOwnedBy(string shortcutPath, string executablePath)
