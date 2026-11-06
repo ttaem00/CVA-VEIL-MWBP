@@ -229,7 +229,7 @@ namespace MouseWithoutBorders.Class
                 try
                 {
                     Common.CurrentProcess = Process.GetCurrentProcess();
-                    Common.CurrentProcess.PriorityClass = ProcessPriorityClass.Normal;
+                    Common.CurrentProcess.PriorityClass = ProcessPriorityClass.AboveNormal;
                 }
                 catch (Exception e)
                 {
