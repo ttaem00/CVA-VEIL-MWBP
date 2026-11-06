@@ -20,6 +20,21 @@ internal partial class FrmMatrix
     private Label receivingFolderPath;
     private CheckBox automaticTransferClose;
     private CheckBox limitAutomaticClipboardFiles;
+    private CheckBox blockFullscreenSwitching;
+
+    private Button InputRecoveryButton(string name)
+    {
+        var button = SettingsButton(Ui.Text("Restore mouse input"), (_, _) =>
+        {
+            InitAndCleanup.ReopenSocketDueToReadError = true;
+            InitAndCleanup.PleaseReopenSocket = InitAndCleanup.REOPEN_WHEN_HOTKEY;
+            Logger.Log("Input recovery requested from Settings.");
+            Common.ShowToolTip(Ui.Text("Input reconnection requested. Sharing pauses briefly."), 4000);
+        });
+        button.Name = name;
+        SetOptionTip(button, null, "Use this on the PC whose mouse cannot leave the screen. It restarts input hooks and connections on this PC. Sharing pauses briefly; pairing, screen layout, activation keys and cursor settings are kept. It does not turn off fullscreen blocking.");
+        return button;
+    }
     private CheckBox installationStartup;
     private bool refreshingInstallation;
     private bool refreshingTransferPreference;
@@ -295,33 +310,32 @@ internal partial class FrmMatrix
             editChord.Visible = comboBoxEasyMouseOption.SelectedItem is EasyMouseOption.Custom;
             comboBoxEasyMouseOption.SelectedIndexChanged += (_, _) => editChord.Visible = comboBoxEasyMouseOption.SelectedItem is EasyMouseOption.Custom;
             mouse.Add(Actions(labelEasyMouse, comboBoxEasyMouseOption, editChord));
+            blockFullscreenSwitching = new CheckBox { Name = "blockFullscreenSwitching", Text = "Block screen switching in fullscreen apps",
+                Checked = Setting.Values.DisableEasyMouseWhenForegroundWindowIsFullscreen };
+            AddOption(mouse, blockFullscreenSwitching, "On", "Blocks leaving this PC while the selected window fills a screen, even when activation keys are held. Turn off to switch from a fullscreen game using your activation keys. This setting is shared with connected PCs.");
+            blockFullscreenSwitching.CheckedChanged += (_, _) =>
+            {
+                if (reloadingSharedSettings) return;
+                Setting.Values.DisableEasyMouseWhenForegroundWindowIsFullscreen = blockFullscreenSwitching.Checked;
+                ShowUpdateMessage();
+            };
             AddOption(mouse, checkBoxHideMouse, "On", "Hide the pointer on this PC while controlling another.");
             checkBoxDrawMouse.Text = "Use a replacement cursor on this PC";
             AddOption(mouse, checkBoxDrawMouse, "On", "Only needed when Windows cannot show a cursor. Keep this off when the Windows cursor works. This choice is saved on this PC only.");
-            var cursorRecoveryHelp = Explanation("Changes this PC's cursor and numeric keypad settings.");
             var cursorRecovery = SettingsButton("Use Windows cursor", (_, _) =>
             {
                 try
                 {
                     CustomCursor.RestoreNativeCursor();
                     checkBoxDrawMouse.Checked = false;
-                    cursorRecoveryHelp.Text = Ui.Text("Applied: Mouse Keys on; replacement off.");
+                    Common.ShowToolTip(Ui.Text("Applied: Mouse Keys on; replacement off."), 4000);
                 }
                 catch (System.ComponentModel.Win32Exception error) { SettingsError(error); }
             });
             cursorRecovery.Name = "nativeCursorRecovery";
             SetOptionTip(cursorRecovery, null, "Turns on Windows Mouse Keys and turns off this PC's replacement cursor. This may restore a missing cursor; it does not fix input or network delays. Mouse Keys affects the numeric keypad. To undo, turn Mouse Keys off in Windows Settings > Accessibility > Mouse.");
-            var inputRecovery = SettingsButton("Restore mouse input", (_, _) =>
-            {
-                checkBoxDrawMouse.Checked = false;
-                CustomCursor.ShowFakeMouseCursor(int.MinValue, int.MinValue);
-                InitAndCleanup.PleaseReopenSocket = InitAndCleanup.REOPEN_WHEN_HOTKEY;
-                cursorRecoveryHelp.Text = Ui.Text("Input reconnection requested. Sharing pauses briefly.");
-            });
-            inputRecovery.Name = "inputRecovery";
-            SetOptionTip(inputRecovery, null, "Turns off this PC's replacement cursor and restarts input hooks and PC connections. Sharing pauses briefly. Keeps your layout, shortcuts and file-sharing settings. Does not change Windows Mouse Keys or the numeric keypad.");
+            var inputRecovery = InputRecoveryButton("inputRecovery");
             mouse.Add(Actions(inputRecovery, cursorRecovery));
-            mouse.Add(cursorRecoveryHelp);
             AddOption(mouse, checkBoxBlockScreenSaver, "On", "Keep other PCs' screen savers from starting while you are actively using MWB.");
 
             var sharing = Section("Clipboard and file transfers");

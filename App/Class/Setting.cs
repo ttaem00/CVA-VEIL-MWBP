@@ -866,7 +866,7 @@ namespace MouseWithoutBorders.Class
             {
                 lock (_loadingSettingsLock)
                 {
-                    return (uint)_properties.MachineID.Value;
+                    return lastDestinationMachineId;
                 }
             }
 
@@ -874,10 +874,13 @@ namespace MouseWithoutBorders.Class
             {
                 lock (_loadingSettingsLock)
                 {
-                    _properties.MachineID.Value = (int)value;
+                    lastDestinationMachineId = value;
                 }
             }
         }
+
+        // Only used for the in-process desktop handoff. A remote destination is never this PC's persistent identity.
+        private uint lastDestinationMachineId;
 
         internal int LastX
         {

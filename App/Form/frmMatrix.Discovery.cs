@@ -28,6 +28,10 @@ internal partial class FrmMatrix
         send.MinimumSize = find.MinimumSize;
         send.Font = find.Font;
         groupBoxKeySetup.Controls.Add(send);
+        var recover = InputRecoveryButton("mainInputRecovery");
+        recover.Location = new Point(send.Right + 8, find.Top);
+        recover.MinimumSize = find.MinimumSize;
+        groupBoxKeySetup.Controls.Add(recover);
         int extraHeight = Math.Max(0, find.Bottom + 8 - groupBoxKeySetup.Height);
         groupBoxKeySetup.Height += extraHeight; Height += extraHeight;
     }
