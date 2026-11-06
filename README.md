@@ -19,6 +19,9 @@
 
 > **서명되지 않은 배포 후보(RC)입니다.** Windows 승인 창에 게시자가 ‘알 수 없음’으로 표시될 수 있습니다. [해당 버전의 릴리스](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10)에서 파일 출처와 SHA256을 확인하세요. 실제 확인한 환경은 Windows 11 x64이며, 모든 PC 구성의 동작이나 지연 해소를 보장하지 않습니다.
 
+<p align="center"><a href="docs/assets/mwbp-settings-anonymized.png"><img src="docs/assets/mwbp-settings-anonymized.png" width="920" alt="MWBP 1.2.0-rc.10 실사용 화면 기반 익명화 편집본. 작업 PC의 모니터 두 개와 게임 PC·보조 PC를 배치하고 연결 상태를 확인합니다."></a></p>
+<p align="center"><sub>실사용 화면 기반 · PC 이름 익명화 및 이미지 보정 · 눌러서 크게 보기</sub></p>
+
 ## 시작하기
 
 1. **각 PC에 같은 버전을 설치하세요.** 설치 EXE 실행 → **MWBP 설치** → Windows 승인으로 진행합니다.
