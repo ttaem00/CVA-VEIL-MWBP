@@ -1,6 +1,6 @@
 # CVA-VEIL-Mouse_Without_Border_Plus
 
-**CVA → VEIL → MWBP**: CVA 모브랜드 아래 VEIL 라이브 도구 제품군에 속하며, 앱 표시 이름은 **MWBP**입니다. MWBP에 승인된 V와 황동색 연결 고리 제품 이미지를 사용합니다. `App/Veil.png`는 사용자가 확정한 MWBP 이미지 원본입니다. VEIL 제품군의 공통 마스터로 확대해 사용하지 않습니다. `App/Veil.ico`는 이 원본의 비율을 유지한 16·20·24·32·40·48·64·128·256px 변환본입니다. 원본 Microsoft 그림을 재색칠하지 않습니다.
+**CVA → VEIL → MWBP**: CVA 모브랜드 아래 VEIL 라이브 도구 제품군에 속하며, 앱 표시 이름은 **MWBP**입니다. VEIL 공통 V의 오른쪽 아래 연결 고리로 MWBP를 구분합니다. 벡터 도면은 CVA 브랜드 정본의 `build_veil_identity.py`이며, 사본은 `docs/assets/veil-mwbp-{color,micro}.svg`입니다. `App/Veil.png`는 512px 파생본이고 `App/Veil.ico`는 같은 도면의 16·20·24·32·40·48·64·128·256px 출력입니다. 16·20px에는 획을 보강한 micro를 씁니다. 앱·설치 EXE·사이트는 이 출력의 사본을 소비하며, 이미지를 크롭하거나 제품별로 V를 다시 그리지 않습니다. 원본 Microsoft 그림을 재색칠하지 않습니다.
 
 Windows PC 사이에서 마우스·키보드·클립보드·파일을 공유하는 Mouse Without Borders Plus의 배포 프로젝트입니다.
 
@@ -19,7 +19,7 @@ Windows PC 사이에서 마우스·키보드·클립보드·파일을 공유하�
 개발 컴퓨터에 Windows, PowerShell 7, .NET SDK 10.0.403이 필요합니다. `global.json`의 고정 SDK로 빌드하며 설치 EXE에는 .NET 10.0.14 보안 패치를 포함합니다. 사용하는 PC에는 SDK가 필요하지 않습니다.
 
 ```powershell
-$destination = '<발급받은 소유 작업 경로>/release-mwb-v1.2.0-rc.6'
+$destination = '<발급받은 소유 작업 경로>/release-mwb-v1.2.0-rc.7'
 pwsh -NoProfile -File ./build.ps1 -RunTests
 pwsh -NoProfile -File './VEIL- MWBP/Build-Release.ps1' -Destination $destination
 ```
@@ -72,3 +72,13 @@ RC7의 최종 전체 시험 결과와 배포 파일은 [해당 릴리스](https:
 실제 세 PC의 동일 버전 적용·지속 사용·체감 지연 해소는 아직 확인하지 않았습니다. 소스 수정과 로컬 시험을 기존 설치본의 적용 완료로 간주하지 않습니다. Windows 화면 합성 시험에서 전경 확보가 불가능하면 해당 검사는 `Inconclusive`이며 PASS로 세지 않습니다.
 
 현재 EXE는 서명되지 않았으므로 Windows 승인 창에 게시자가 ‘알 수 없음’으로 표시될 수 있습니다. 실제 확인한 사용 환경은 Windows 11 x64이며, UAC 마우스 클릭은 별도 확인이 필요합니다. 이 후보를 모든 요구사항의 최종 수락이나 안정 버전 보증으로 표시하지 않습니다.
+
+## PR merge-ref 로컬 검증
+
+소유 이슈 브랜치를 commit·push하고 같은 브랜치의 PR이 열려 있으면 다음 검사를 실행합니다. 위의 process-local SDK 환경을 그대로 사용합니다.
+
+```powershell
+pwsh.exe -NoProfile -File ./scripts/Test-PrValidationGate.ps1 -Root $PWD -MaxTotalSeconds 600 -ChildTimeoutSeconds 120
+```
+
+검사는 현재 PR의 head·main과 정확한 merge ref 부모를 확인하고, 현재 HEAD tree가 merge tree와 같을 때만 이 checkout에서 기존 전체 시험과 단일 설치 파일 생성을 실행합니다. 차이가 있으면 정상 additive merge·push 뒤 다시 검증합니다. 종료 후 source·PR head/base도 다시 확인합니다. 이 스크립트의 Git 쓰기는 해당 PR merge ref를 FETCH_HEAD로 받는 fetch뿐입니다. branch·index·worktree를 바꾸지 않으며 설치 EXE나 실제 앱을 실행하지 않습니다. 출력은 ignored `artifacts/pr-validation` 아래에 남습니다. 통과는 공개 배포나 설치된 PC의 적용을 뜻하지 않습니다.
