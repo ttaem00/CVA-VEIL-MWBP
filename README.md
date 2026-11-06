@@ -1,84 +1,68 @@
-<p align="center"><img src="docs/assets/veil.png?v=rc10" width="112" alt="VEIL MWBP"></p>
+<p align="center"><img src="docs/assets/veil.png?v=rc10" width="72" alt="VEIL MWBP"></p>
 
 <h1 align="center">VEIL · MWBP</h1>
-<p align="center"><strong>마우스 하나로, 여러 PC를 하나처럼.</strong></p>
-<p align="center">Windows PC 사이에서 마우스·키보드·클립보드·파일을 공유하는 독립형 앱</p>
+<p align="center"><strong>PC는 여러 대. 마우스는 하나.</strong><br>키보드·클립보드·파일도 함께.</p>
 
 <p align="center">
-  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10"><img src="https://img.shields.io/badge/version-1.2.0--rc.10-172231?style=flat-square" alt="1.2.0-rc.10 배포 후보"></a>
-  <img src="https://img.shields.io/badge/Windows-x64-172231?style=flat-square" alt="Windows x64">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8b6b35?style=flat-square" alt="MIT 라이선스"></a>
+  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/download/mwb-v1.2.0-rc.10/VEIL-MWBP-Setup.exe"><strong>Windows x64 다운로드 ↓</strong></a>
+  &nbsp;·&nbsp; <a href="https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/">소개 페이지 ↗</a>
 </p>
-
-<p align="center">
-  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/download/mwb-v1.2.0-rc.10/VEIL-MWBP-Setup.exe"><strong>Windows x64 설치 다운로드 →</strong></a><br>
-  <a href="https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/">제품 사이트</a> · <a href="#시작하기">시작하기</a> · <a href="#할-수-있는-일">기능</a> · <a href="#알아둘-점">지원 범위</a> · <a href="https://ttaem.com">ttaem.com</a>
-</p>
-
-**PowerToys나 .NET을 따로 설치할 필요가 없습니다.** `VEIL-MWBP-Setup.exe` 하나로 설치하며, 기존 연결·모니터 배치·단축키·전송 기록을 유지합니다. 현재 버전은 **설정 창 제목**과 **정보**에서 확인할 수 있습니다. 앱에서는 **Mouse Without Borders Plus / MWBP**로 표시합니다.
-
-> **서명되지 않은 배포 후보(RC)입니다.** Windows 승인 창에 게시자가 ‘알 수 없음’으로 표시될 수 있습니다. [해당 버전의 릴리스](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10)에서 파일 출처와 SHA256을 확인하세요. 실제 확인한 환경은 Windows 11 x64이며, 모든 PC 구성의 동작이나 지연 해소를 보장하지 않습니다.
-
-<p align="center"><a href="docs/assets/mwbp-settings-anonymized.png"><img src="docs/assets/mwbp-settings-anonymized.png" width="920" alt="MWBP 1.2.0-rc.10 실사용 화면 기반 익명화 편집본. 작업 PC의 모니터 두 개와 게임 PC·보조 PC를 배치하고 연결 상태를 확인합니다."></a></p>
-<p align="center"><sub>실사용 화면 기반 · PC 이름 익명화 및 이미지 보정 · 눌러서 크게 보기</sub></p>
+<p align="center"><a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10">1.2.0-rc.10 · 미서명 배포 후보</a> · Windows 11 x64에서 확인</p>
 
 ## 시작하기
 
-1. **각 PC에 같은 버전을 설치하세요.** 설치 EXE 실행 → **MWBP 설치** → Windows 승인으로 진행합니다.
-2. **PC 찾기에서 연결하세요.** 양쪽 화면의 확인 코드가 같으면 양쪽에서 승인합니다. 목록에 없으면 상대 PC의 이름이나 IPv4 주소를 입력합니다.
-3. **모니터를 끌어 배치하고 적용하세요.** 화면별로 실제 위치에 맞춰 가장자리를 붙입니다. 표시된 접경을 통해 다른 화면으로 이동합니다.
+1. **설치** — 각 PC에서 설치 EXE 실행 → **MWBP 설치** → Windows 승인.
+2. **연결** — **PC 찾기**에서 양쪽 확인 코드가 같으면 양쪽에서 승인.
+3. **배치** — 모니터를 실제 위치에 맞춰 끌어 붙이고 **적용**.
 
-설치 후 바탕화면의 **VEIL MWBP** 바로가기를 열거나 시작 메뉴에서 **VEIL MWBP**를 검색하세요. 새 설치는 Windows 로그인 시 자동 시작이 기본으로 켜지며, 업데이트는 기존 자동 시작 선택을 유지합니다. 설치 방식이나 별도 런타임을 선택할 필요가 없습니다.
+업데이트해도 기존 연결·모니터 배치·단축키·전송 기록은 유지됩니다.
 
-## 할 수 있는 일
+<p align="center"><a href="docs/assets/mwbp-settings-anonymized.png"><img src="docs/assets/mwbp-settings-anonymized.png" width="920" alt="MWBP 1.2.0-rc.10 실사용 화면 기반 익명화 편집본. 작업 PC의 모니터 두 개와 게임 PC·보조 PC의 화면 배치와 연결 상태를 보여 줍니다."></a></p>
+<p align="center"><sub>실사용 화면 기반 · PC 이름 익명화 및 이미지 보정 · 눌러서 크게 보기</sub></p>
 
-| 기능 | 사용하는 방법 |
-| --- | --- |
-| **모니터별 자유 배치** | PC 안의 각 모니터를 따로 배치합니다. 스냅과 이동 가능한 접경 표시로 이웃 화면을 확인합니다. |
-| **직접 지정하는 키** | 전환 조건과 PC 전환 단축키를 녹화합니다. Caps Lock과 여러 키 조합도 지정할 수 있습니다. |
-| **파일 보내기** | **파일 보내기…**에서 받는 PC와 파일을 고릅니다. 상대 PC에 설정된 수신 폴더로 전송합니다. |
-| **전송 중단·재개** | 전송 센터에서 진행 상태를 확인하고 중단된 파일 전송을 재개합니다. |
-| **클립보드 공유** | 복사한 텍스트·이미지·파일을 연결된 PC에서 사용합니다. 파일 전송 허용은 별도 설정입니다. |
+## 화면도, 키도, 파일도.
 
-기본으로 켜진 **자동 전송 300MB 제한**은 클립보드로 복사한 단일 파일에 적용합니다. 정확히 300MB는 허용하며, 큰 파일은 **파일 보내기**나 드래그로 전송할 수 있습니다. 명시 송신의 수신 폴더 동작을 함께 사용하려면 보내는 PC와 받는 PC 모두 같은 버전을 설치하세요.
+- **화면은 자유롭게.** 모니터별 배치, 스냅과 이동 가능한 접경 표시.
+- **전환은 내 손에 맞게.** Caps Lock부터 여러 키 조합까지 직접 지정.
+- **파일은 필요한 PC로.** 클립보드 공유, 받는 PC를 고르는 파일 보내기, 중단된 전송 재개.
 
-## 알아둘 점
-
-- **관리자 앱·Windows 승인 화면:** 설치 시 Windows 승인을 받아 SYSTEM 입력 서비스를 설치합니다. 연결된 PC에 관리자 화면의 입력 능력을 위임하며, 이 Windows 계정의 다른 앱이 권한을 악용할 수 있습니다. Windows 정책으로 서비스가 금지된 경우 일반 입력·연결·파일 공유는 별도로 사용할 수 있습니다.
-- **입력 복구:** 옵션의 **마우스 입력 복구**는 이 PC의 대체 커서를 끄고 입력 훅·연결을 다시 시작하도록 요청합니다. 공유가 잠시 끊기며 기존 설정은 유지합니다. Windows 마우스 키·숫자패드 설정은 바꾸지 않습니다. 특정 지연의 해결을 보증하는 버튼은 아닙니다.
-- **Windows 커서 사용:** Windows 마우스 키를 켜고 대체 커서를 끄는 별도 표시 설정입니다. 숫자 키패드 동작에 영향을 줄 수 있습니다.
-- **배포 범위:** Windows x64 설치 EXE를 제공합니다. ARM64 빌드 옵션을 ARM64 실사용 검증으로 해석하지 않습니다. 자동 시험 통과와 실제 세 PC 사용 확인도 구분합니다.
-- **설치 파일 크기:** 실제 RC.7 설치 EXE는 약 85MB입니다. 별도 설치가 필요 없도록 .NET 10·Windows Desktop 런타임을 포함하며, 압축된 제품 자체는 약 1.7MB입니다. RC.10의 정확한 크기는 해당 릴리스를 확인하세요. 파일 크기만으로 실행 중 입력 지연의 원인을 판단할 수는 없습니다.
-- **제거·다시 설치:** Windows **설치된 앱** 또는 MWBP 설정에서 제거합니다. 연결·설정 보존 여부를 선택할 수 있습니다.
-
-[제품 사이트의 FAQ](https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/#help) · [오류 제보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/issues)
+[도움말](https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/#help) · [문제 제보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/issues)
 
 <details>
-<summary><strong>개발·빌드·검증 안내</strong></summary>
+<summary><strong>권한·지원 안내</strong></summary>
 
-개발 환경은 Windows, PowerShell 7, .NET SDK **10.0.403**입니다. `global.json`으로 SDK를 고정하며 설치 EXE에는 .NET **10.0.14** 런타임이 포함됩니다. 사용자는 SDK나 비공개 저장소 접근이 필요하지 않습니다.
+- **미서명 배포 후보:** Windows 승인 창에 게시자가 ‘알 수 없음’으로 표시될 수 있습니다. [릴리스의 파일 출처와 SHA256](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10)을 확인하세요. Windows 11 x64에서 확인했으며, ARM64 실사용과 모든 PC 구성의 동작은 확인하지 않았습니다.
+- **관리자 화면 제어:** Windows 승인을 받아 SYSTEM 입력 서비스를 설치합니다. 연결된 PC에 관리자 화면의 입력 능력을 위임하며, 이 Windows 계정의 다른 앱이 권한을 악용할 수 있습니다. 정책으로 서비스가 금지돼도 일반 입력·연결·파일 공유는 별도로 사용할 수 있습니다.
+- **PC가 보이지 않을 때:** 두 PC에서 MWBP를 실행하고 네트워크 접근 허용을 확인하세요. **PC 찾기**에 상대 PC 이름이나 IPv4 주소를 직접 입력할 수도 있습니다. 양쪽 확인 코드 비교와 승인은 동일합니다.
+- **파일 자동 전송:** 기본으로 켜진 **자동 전송 300MB 제한**은 클립보드로 복사한 단일 파일에 적용하며, 정확히 300MB는 허용합니다. 큰 파일은 **파일 보내기…** 또는 드래그로 전송하세요. 파일 전송 허용은 별도 설정이며, 양쪽 PC에 같은 버전을 설치하세요.
+- **입력 복구:** **마우스 입력 복구**는 이 PC의 대체 커서를 끄고 입력 훅·연결을 다시 시작하도록 요청합니다. 공유가 잠시 끊기며 설정은 유지됩니다. Windows 마우스 키·숫자패드 설정은 바꾸지 않습니다. 별도 **Windows 커서 사용**은 마우스 키를 켜므로 숫자 키패드 동작에 영향을 줄 수 있습니다. 특정 지연의 해결을 보증하지 않으며, ChatGPT 실행 중 지연의 원인과 지속적인 해소는 아직 확인하지 않았습니다.
+- **실행·제거:** 바탕화면이나 시작 메뉴에서 **VEIL MWBP**를 찾으세요. 새 설치는 로그인 시 자동 시작이 기본이며 업데이트는 기존 선택을 유지합니다. Windows **설치된 앱** 또는 앱 설정에서 제거하고, 연결·설정 보존 여부를 선택할 수 있습니다.
+- **설치 구성:** PowerToys나 .NET을 별도로 설치할 필요가 없습니다. EXE에 .NET 10·Windows Desktop 런타임이 포함됩니다. 버전은 앱 설정 창 제목과 **정보**에서 확인하세요.
+
+</details>
+
+<details>
+<summary><strong>개발·빌드 안내</strong></summary>
+
+Windows · PowerShell 7 · .NET SDK **10.0.403** (`global.json` 고정).
 
 ```powershell
 pwsh -NoProfile -File ./build.ps1 -RunTests
 pwsh -NoProfile -File './VEIL- MWBP/Build-Release.ps1' -Destination 'C:/build/VEIL- MWBP'
 ```
 
-상세 배포 진입점은 [배포 안내](<VEIL- MWBP/README.md>)입니다. 출력 폴더는 비어 있어야 하며, 단일 설치 EXE·SHA256·라이선스·설치 안내를 생성합니다. 실행 파일·서비스·설정의 내부 이름과 저장 경로는 기존 MWBP와 호환되게 유지합니다.
+[배포 안내](<VEIL- MWBP/README.md>) · [정적 사이트 유지보수](docs/README.md)
 
-RC.9는 같은 연결·목적지에서 이미 수신되어 쌓인 연속된 순수 절대좌표 마우스 이동을 마지막 좌표로 줄입니다. 키·버튼·휠·상대 이동·제어 메시지 순서와 기존 SendInput·UAC·자체 주입 구분은 유지합니다. 새 타이머·worker·입력 큐를 추가하지 않으며, 복구 버튼과 무관하게 항상 적용됩니다. 앞선 설정 저장·송신 잠금 분리와 강제 전체 GC 제거도 유지합니다.
+출력 폴더는 비어 있어야 합니다. 단일 설치 EXE·SHA256·라이선스·설치 안내를 생성하며 내부 이름과 저장 경로는 기존 MWBP와 호환되게 유지합니다. 사용자는 SDK나 비공개 저장소 접근이 필요하지 않습니다.
 
-이는 입력 대기열을 줄이는 코드 변경이며 실제 체감 지연 해소를 입증하는 수치는 아닙니다. ChatGPT 실행 중 나타나는 지연의 원인과 지속적인 해소는 아직 확인하지 않았습니다. RC.10 시험 결과는 해당 릴리스를 참조하며, 이전 후보의 결과나 로컬 시험을 실제 세 PC 수락으로 세지 않습니다.
-
-Windows 화면 합성 시험은 시험 창이 전경을 확보해야 실행됩니다. 이 전제가 성립하지 않으면 포커스·합성 검사는 `Inconclusive`로 남으며 PASS로 세지 않습니다. 다른 파일·입력·설치 시험은 독립적으로 실행합니다.
-
-공개 소스에는 실제 사용자 설정·보안 키·전송 기록·개인 PC 진단 자료를 포함하지 않습니다. 과거 로컬 시험 화면을 현재 배포본의 실제 화면으로 게시하지 않습니다. 제품 사이트는 [정적 HTML과 CSS](docs/README.md)이며 별도 빌드나 JavaScript 없이 읽을 수 있습니다.
+자동 시험 통과와 실제 세 PC 사용 확인은 구분합니다. Windows 화면 합성 시험은 시험 창이 전경을 확보하지 못하면 `Inconclusive`로 남습니다. 버전별 변경·검증 범위는 [릴리스](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10)를 확인하세요. 공개 소스에 실제 사용자 설정·보안 키·전송 기록·개인 PC 진단 자료를 포함하지 않습니다.
 
 </details>
 
 ## 출처와 라이선스
 
-Microsoft PowerToys의 Mouse Without Borders를 기반으로 한 **비공식 프로젝트**입니다. Microsoft와 제휴하거나 보증받은 제품이 아닙니다.
+Microsoft PowerToys의 Mouse Without Borders를 기반으로 수정한 **비공식 프로젝트**입니다. Microsoft와 제휴하거나 보증받은 제품이 아닙니다.
 
-MIT [aeae1/MouseWithoutBorders-Portable](https://github.com/aeae1/MouseWithoutBorders-Portable)의 `e9feba6da37b35a763a638a7e071c7189180cc14`를 기반으로 수정했습니다. 원본 저작권·[LICENSE](LICENSE)·[NOTICE](NOTICE.md)와 [제3자 고지](<VEIL- MWBP/THIRD-PARTY-NOTICES.txt>)를 보존합니다. Input Director는 공개 UX 자료만 참고했으며 독점 코드를 사용하지 않았습니다.
+MIT [aeae1/MouseWithoutBorders-Portable](https://github.com/aeae1/MouseWithoutBorders-Portable)의 `e9feba6da37b35a763a638a7e071c7189180cc14`를 기반으로 합니다. [LICENSE](LICENSE) · [NOTICE](NOTICE.md) · [제3자 고지](<VEIL- MWBP/THIRD-PARTY-NOTICES.txt>)와 원본 저작권을 보존합니다. Input Director는 공개 UX 자료만 참고했으며 독점 코드를 사용하지 않았습니다.
 
-VEIL 제품군은 같은 V를 공유하고, MWBP는 오른쪽 아래의 마우스 표식으로 구분합니다. [벡터 원본](docs/assets/veil-mwbp-color.svg)에서 만든 PNG·ICO를 앱·설치 EXE·제품 사이트가 함께 사용합니다. [원본과 크기별 적용 기준](docs/README.md)을 따르며, Microsoft의 원본 그림을 재색칠하지 않습니다.
+VEIL의 V와 MWBP 마우스 표식은 앱·설치 파일·소개 페이지에서 함께 사용합니다. [브랜드 벡터 원본](docs/assets/veil-mwbp-color.svg) · [크기별 적용 기준](docs/README.md).
