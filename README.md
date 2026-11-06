@@ -76,4 +76,4 @@ Microsoft PowerToys의 Mouse Without Borders를 기반으로 한 **비공식 프
 
 MIT [aeae1/MouseWithoutBorders-Portable](https://github.com/aeae1/MouseWithoutBorders-Portable)의 `e9feba6da37b35a763a638a7e071c7189180cc14`를 기반으로 수정했습니다. 원본 저작권·[LICENSE](LICENSE)·[NOTICE](NOTICE.md)와 [제3자 고지](<VEIL- MWBP/THIRD-PARTY-NOTICES.txt>)를 보존합니다. Input Director는 공개 UX 자료만 참고했으며 독점 코드를 사용하지 않았습니다.
 
-VEIL 표식은 사용자가 확정한 [원본 이미지](App/Veil.png)를 사용합니다. Microsoft의 원본 그림을 재색칠한 아이콘이 아닙니다.
+VEIL 제품군은 같은 V를 공유하고, MWBP는 오른쪽 아래의 연결 고리로 구분합니다. [벡터 원본](docs/assets/veil-mwbp-color.svg)에서 만든 PNG·ICO를 앱·설치 EXE·제품 사이트가 함께 사용합니다. [원본과 크기별 적용 기준](docs/README.md)을 따르며, Microsoft의 원본 그림을 재색칠하지 않습니다.
