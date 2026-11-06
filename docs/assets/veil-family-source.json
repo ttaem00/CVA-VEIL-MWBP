@@ -3,7 +3,7 @@
   "canonical_repository": "https://github.com/ttaem00/chzz-vod-analyzer",
   "canonical_directory": "docs/design/cva-brand-v1",
   "canonical_generator": "build_veil_identity.py",
-  "generator_sha256": "bdbe3b2243b39479a1ea74352990961e27ede53f98c3c4c7a24e252f6c79f055",
+  "generator_sha256": "9c1d96d08c85b57e253cf75c166f87eda63fc32a7f93964b0f5d34d80f09dc96",
   "renderer": "resvg_py==0.5.0",
   "icon_sizes": [
     16,
@@ -22,11 +22,11 @@
   ],
   "raster_png_size": 512,
   "files_sha256": {
-    "App/Veil.png": "d13180fcb82e8b7a6119c365979cf2f5bc4d6c792268c45a1e4dd27a2136232c",
-    "App/Veil.ico": "4dafd4fe63716260bac6f38054e0b19e32cc8155d1a3efeec05067a9d0e56c66",
-    "docs/assets/veil.png": "d13180fcb82e8b7a6119c365979cf2f5bc4d6c792268c45a1e4dd27a2136232c",
-    "docs/assets/veil-mwbp-color.svg": "8314db2cb2b82cc175d65bfa12b4e9252d69a737d46cbed9ab7e21456e47d0be",
-    "docs/assets/veil-mwbp-micro.svg": "9d83986aafacdfaf3aff32fa123ff7049747a32670f78cab5706b4cd143de896",
-    "docs/assets/veil.ico": "4dafd4fe63716260bac6f38054e0b19e32cc8155d1a3efeec05067a9d0e56c66"
+    "App/Veil.png": "e5e21d3a359f0a7fc478fed82f0d08339851787972058934a08e7d1352e0d4e6",
+    "App/Veil.ico": "9acfb3965e614c41fea2d2701f49f600f38fa0fe0994413d318a1e7e91577f1f",
+    "docs/assets/veil.png": "e5e21d3a359f0a7fc478fed82f0d08339851787972058934a08e7d1352e0d4e6",
+    "docs/assets/veil-mwbp-color.svg": "82007297d7c8c6664849a70bd6e4b33bcbe4b5923d282cbdec4cfa29723003bb",
+    "docs/assets/veil-mwbp-micro.svg": "027aa2a740e0341985c74975cbd7c5b4133e993adb33dec403032e407bf131f5",
+    "docs/assets/veil.ico": "9acfb3965e614c41fea2d2701f49f600f38fa0fe0994413d318a1e7e91577f1f"
   }
 }
