@@ -4,10 +4,10 @@
 <p align="center"><strong>PC는 여러 대. 마우스는 하나.</strong><br>키보드·클립보드·파일도 함께.</p>
 
 <p align="center">
-  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/download/mwb-v1.2.0-rc.10/VEIL-MWBP-Setup.exe"><strong>Windows x64 다운로드 ↓</strong></a>
+  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/download/mwb-v1.2.0-rc.11/VEIL-MWBP-Setup.exe"><strong>Windows x64 다운로드 ↓</strong></a>
   &nbsp;·&nbsp; <a href="https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/">소개 페이지 ↗</a>
 </p>
-<p align="center"><a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10">버전 1.2.0-rc.10 · 변경 사항</a> · Windows 11 x64에서 확인</p>
+<p align="center"><a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.11">버전 1.2.0-rc.11 · 변경 사항</a> · Windows 11 x64에서 확인</p>
 
 ## 시작하기
 
@@ -40,9 +40,11 @@
 </details>
 
 <details>
-<summary><strong>마우스가 느리거나 커서가 안 보여요.</strong></summary>
+<summary><strong>마우스가 안 넘어가거나 커서가 안 보여요.</strong></summary>
 
-느려지거나 커서가 안 보이는 PC의 설정에서 **마우스 입력 복구**를 누르세요. 대체 커서를 끄고 마우스 공유 연결을 다시 시도합니다. 조작이 잠시 끊길 수 있지만 설정은 그대로입니다.
+마우스가 다른 PC로 넘어가지 않으면 문제가 생긴 PC의 **PC 연결 → 마우스 입력 복구**를 누르세요. 입력 처리와 연결을 다시 시작하며 공유가 잠시 끊깁니다. 연결·배치·전환 키·커서 설정은 유지됩니다.
+
+전체 화면 게임에서도 전환 키로 넘어가려면 **옵션 → 전체 화면 앱에서 화면 전환 차단**을 끄세요. 연결된 PC에도 같은 설정이 적용됩니다.
 
 버튼으로 해결되지 않는 지연도 있습니다. **Windows 커서 사용**은 별도 설정이며, Windows 마우스 키를 켜므로 숫자 키패드 동작에 영향을 줄 수 있습니다.
 
@@ -80,7 +82,7 @@
 
 설치 파일에 제작자를 확인하는 디지털 서명이 없기 때문입니다. Windows가 게시자를 확인하지 못해 표시하는 안내입니다.
 
-설치 전에 [다운로드 파일 정보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.10)에서 파일 이름과 출처를 확인하세요.
+설치 전에 [다운로드 파일 정보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.11)에서 파일 이름과 출처를 확인하세요.
 
 </details>
 
