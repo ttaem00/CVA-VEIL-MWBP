@@ -1,6 +1,6 @@
 # CVA-VEIL-Mouse_Without_Border_Plus
 
-앱 표시 이름은 **MWBP**입니다. VEIL 상위 브랜드의 V 원형에 같은 황동색의 연결 고리를 우측 하단 제품 표식으로 사용합니다. `App/Veil.png`는 사용자가 확정한 이미지 원본이며 직접 다시 그리지 않습니다. `App/Veil.ico`는 이 원본의 비율을 유지한 16·20·24·32·40·48·64·128·256px 변환본입니다. 원본 Microsoft 그림을 재색칠하지 않습니다.
+**CVA → VEIL → MWBP**: CVA 모브랜드 아래 VEIL 라이브 도구 제품군에 속하며, 앱 표시 이름은 **MWBP**입니다. MWBP에 승인된 V와 황동색 연결 고리 제품 이미지를 사용합니다. `App/Veil.png`는 사용자가 확정한 MWBP 이미지 원본입니다. VEIL 제품군의 공통 마스터로 확대해 사용하지 않습니다. `App/Veil.ico`는 이 원본의 비율을 유지한 16·20·24·32·40·48·64·128·256px 변환본입니다. 원본 Microsoft 그림을 재색칠하지 않습니다.
 
 Windows PC 사이에서 마우스·키보드·클립보드·파일을 공유하는 Mouse Without Borders Plus의 배포 프로젝트입니다.
 
@@ -8,15 +8,42 @@ Windows PC 사이에서 마우스·키보드·클립보드·파일을 공유하�
 
 기존 연결·모니터 배치·단축키·전송 기록은 앱의 기존 설치 경로에서 보존합니다. 실행 파일·서비스·설정의 내부 이름을 바꿔 별도 설치본을 만드는 방식으로 리브랜딩하지 않습니다.
 
+## 소스 정본과 작업 위치
+
+소스 정본은 독립 저장소 [ttaem00/CVA-VEIL-Mouse_Without_Border_Plus](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus)입니다. 기존 원본 폴더와 그 안의 ignored 빌드·검증 자료는 보존하고, 개발은 관리 도구가 발급한 깨끗한 이슈 checkout에서 진행합니다. 아래 명령은 그 checkout 루트에서 실행합니다.
+
+배포 후보와 검증 자료는 소유가 확인된 별도 작업 경로에 보존합니다. `-Destination`에는 비어 있는 새 출력 경로를 넘깁니다. 설치본·사용자 설정 경로를 빌드 출력으로 사용하지 않습니다. 로컬 후보 생성, 공개 릴리스, 실제 PC 설치는 각각 확인합니다.
+
 ## 재빌드
 
 개발 컴퓨터에 Windows, PowerShell 7, .NET SDK 10.0.403이 필요합니다. `global.json`의 고정 SDK로 빌드하며 설치 EXE에는 .NET 10.0.14 보안 패치를 포함합니다. 사용하는 PC에는 SDK가 필요하지 않습니다.
 
 ```powershell
-pwsh -NoProfile -File './VEIL- MWBP/Build-Release.ps1' -Destination 'C:/build/VEIL- MWBP'
+$destination = '<발급받은 소유 작업 경로>/release-mwb-v1.2.0-rc.6'
+pwsh -NoProfile -File ./build.ps1 -RunTests
+pwsh -NoProfile -File './VEIL- MWBP/Build-Release.ps1' -Destination $destination
 ```
 
 출력 폴더는 비어 있어야 합니다. 설치 EXE와 SHA256, 라이선스·안내가 생성됩니다. 별도 MSI나 설치 스크립트를 사용자에게 실행시키지 않습니다. 설치 EXE와 앱은 동일 바이너리이며, 설치 후에는 보호된 기존 경로의 앱을 일반 권한으로 실행합니다.
+
+고정 SDK가 없으면 [Microsoft 공식 메타데이터](https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/10.0/releases.json)의 **10.0.403 / win-x64 ZIP**을 소유 작업 경로에 받고, 메타데이터의 SHA512와 대조한 뒤 같은 소유 경로에 풉니다. 선택적으로 아래 process 환경을 먼저 설정하면 전역 SDK나 PATH를 교체하지 않고 사용할 수 있습니다. `<...>`는 실제 발급 경로로 바꾸며, `$ownedRoot` 아래 `tmp`는 관리 도구가 발급한 임시 경로입니다.
+
+```powershell
+$sdkRoot = '<공식 ZIP을 푼 SDK 10.0.403 경로>'
+$ownedRoot = '<발급받은 소유 작업 경로>'
+$env:DOTNET_ROOT = $sdkRoot
+$env:DOTNET_ROOT_X64 = $sdkRoot
+$env:PATH = "$sdkRoot;$env:PATH"
+$env:DOTNET_CLI_HOME = Join-Path $ownedRoot 'tmp/dotnet-cli-home'
+$env:NUGET_PACKAGES = Join-Path $ownedRoot 'tmp/nuget-packages'
+$env:TEMP = Join-Path $ownedRoot 'tmp'
+$env:TMP = $env:TEMP
+$env:TMPDIR = $env:TEMP
+$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+$env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
+dotnet --version # 10.0.403 확인 후 위 빌드·패키지 명령 실행
+```
 
 ## 배포 범위
 
