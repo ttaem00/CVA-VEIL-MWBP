@@ -12,8 +12,8 @@ namespace MouseWithoutBorders;
 
 /// <summary>
 /// Applies the standalone executable's product icon to its UI surfaces.
-/// App/Veil.png is the approved master. The build embeds its size-converted App/Veil.ico for the
-/// executable, title bars, and the tray icon.
+/// App/Veil.png and App/Veil.ico are generated from the shared VEIL V with the MWBP link badge.
+/// The build embeds the multi-size ICO for the executable, title bars, and tray icon.
 /// </summary>
 internal static class StandaloneBranding
 {
@@ -59,7 +59,7 @@ internal static class StandaloneBranding
 
         if (notifyIcon != null)
         {
-            notifyIcon.Icon = CreateProductIcon();
+            notifyIcon.Icon = CreateProductIcon(SystemInformation.SmallIconSize);
         }
     }
 }

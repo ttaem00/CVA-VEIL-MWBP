@@ -38,6 +38,17 @@ public sealed class ReleasePackagingTests
                         Assert.AreEqual(expected.GetPixel(x, y), actual.GetPixel(x, y), "About icon differs from the embedded VEIL artwork.");
                         Assert.AreEqual(expected.GetPixel(x, y), sendIcon.GetPixel(x, y), "Send dialog icon differs from the embedded VEIL artwork.");
                     }
+                using var trayHost = new System.Windows.Forms.Form();
+                using var tray = new NotifyIcon();
+                StandaloneBranding.Apply(trayHost, tray);
+                using var trayResource = typeof(FrmAbout).Assembly.GetManifestResourceStream("MouseWithoutBorders.Veil.ico");
+                using var expectedTrayIcon = new System.Drawing.Icon(trayResource!, SystemInformation.SmallIconSize);
+                using var expectedTray = expectedTrayIcon.ToBitmap();
+                using var actualTray = tray.Icon!.ToBitmap();
+                Assert.AreEqual(expectedTray.Size, actualTray.Size, "The tray must select the system small-icon frame, including the micro artwork at 16 and 20 pixels.");
+                for (int y = 0; y < expectedTray.Height; y++)
+                    for (int x = 0; x < expectedTray.Width; x++)
+                        Assert.AreEqual(expectedTray.GetPixel(x, y), actualTray.GetPixel(x, y), "The tray must preserve the small VEIL frame without resizing the 32-pixel artwork.");
                 var text = (TextBox)typeof(FrmAbout).GetField("textBoxContributors", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(about)!;
                 Assert.IsTrue(text.ReadOnly);
                 Assert.IsTrue(text.Multiline);
