@@ -94,9 +94,10 @@ public sealed class Rc7RegressionTests
             string name = "mwb-install-test-" + Guid.NewGuid().ToString("N");
             using var server = IpcChannel<object>.CreateServer(name);
             var target = new ShutdownTarget();
+            var connection = server.WaitForConnectionAsync();
             var serving = Task.Run(async () =>
             {
-                await server.WaitForConnectionAsync();
+                await connection;
                 using var rpc = JsonRpc.Attach(server, target);
                 try { await rpc.Completion; } catch (ConnectionLostException) { }
             });

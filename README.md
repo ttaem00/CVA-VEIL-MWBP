@@ -51,7 +51,7 @@
 - **설치 파일 크기:** 실제 RC.7 설치 EXE는 약 85MB입니다. 별도 설치가 필요 없도록 .NET 10·Windows Desktop 런타임을 포함하며, 압축된 제품 자체는 약 1.7MB입니다. RC.10의 정확한 크기는 해당 릴리스를 확인하세요. 파일 크기만으로 실행 중 입력 지연의 원인을 판단할 수는 없습니다.
 - **제거·다시 설치:** Windows **설치된 앱** 또는 MWBP 설정에서 제거합니다. 연결·설정 보존 여부를 선택할 수 있습니다.
 
-[제품 사이트의 FAQ](https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/#faq) · [오류 제보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/issues)
+[제품 사이트의 FAQ](https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/#help) · [오류 제보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/issues)
 
 <details>
 <summary><strong>개발·빌드·검증 안내</strong></summary>
