@@ -16,6 +16,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 using Microsoft.PowerToys.Settings.UI.Library;
@@ -70,6 +71,9 @@ namespace MouseWithoutBorders.Class
         private int hMouseHook;
         private int hKeyboardHook;
         private byte localModifiers;
+        private bool emergencyBackspaceDown;
+        private Dictionary<(ID Target, int Key), KEYBDDATA> remoteKeys;
+        private HashSet<(ID Target, int Message, int Button)> remoteButtons;
         private static NativeMethods.HookProc mouseHookProcedure;
         private static NativeMethods.HookProc keyboardHookProcedure;
 
@@ -260,6 +264,21 @@ namespace MouseWithoutBorders.Class
                 };
                 bool suppress = MouseEvent?.Invoke(hookCallbackMouseData,
                     mouseHookStruct.Pt.x - Common.LastPos.X, mouseHookStruct.Pt.y - Common.LastPos.Y) ?? false;
+                int release = wParam switch
+                {
+                    WM.WM_LBUTTONDOWN or WM.WM_LBUTTONUP => WM.WM_LBUTTONUP,
+                    WM.WM_RBUTTONDOWN or WM.WM_RBUTTONUP => WM.WM_RBUTTONUP,
+                    WM.WM_MBUTTONDOWN or WM.WM_MBUTTONUP => WM.WM_MBUTTONUP,
+                    WM.WM_XBUTTONDOWN or WM.WM_XBUTTONUP => WM.WM_XBUTTONUP,
+                    _ => 0,
+                };
+                if (release != 0)
+                {
+                    var button = (Common.DesMachineID, release, release == WM.WM_XBUTTONUP ? hookCallbackMouseData.WheelDelta : 0);
+                    if (wParam == release) remoteButtons?.Remove(button);
+                    else if ((suppress || Common.DesMachineID == ID.ALL) && Common.DesMachineID != Common.MachineID && Common.DesMachineID != ID.NONE)
+                        (remoteButtons ??= new()).Add(button);
+                }
                 DragDrop.DragDropStep01(wParam);
                 DragDrop.DragDropStep09(wParam);
                 return suppress ? 1 : NativeMethods.CallNextHookEx(hMouseHook, nCode, wParam, lParam);
@@ -296,6 +315,49 @@ namespace MouseWithoutBorders.Class
 
             Event.RealInputEventCount++;
 
+            bool physicalBackspace = (VK)keyboardHookStruct.VkCode == VK.BACK && (keyboardHookStruct.Flags & 0x10) == 0;
+            if (physicalBackspace && emergencyBackspaceDown)
+            {
+                if (up) emergencyBackspaceDown = false;
+                return 1;
+            }
+
+            // Reserved escape: extra stale keys and the configurable shortcut switch
+            // must never prevent the physical controller from taking its PC back.
+            if (!up && physicalBackspace
+                && easyMouseKeys.IsActive(EasyMouseOption.Ctrl, Array.Empty<int>())
+                && easyMouseKeys.IsActive(EasyMouseOption.Alt, Array.Empty<int>()))
+            {
+                var previous = Common.DesMachineID;
+                var transport = Common.Sk;
+                var releases = new List<DATA>();
+                if (remoteKeys != null)
+                    foreach (var key in remoteKeys)
+                    {
+                        var release = key.Value;
+                        release.dwFlags |= (int)WM.LLKHF.UP;
+                        releases.Add(new DATA { Type = PackageType.Keyboard, Des = key.Key.Target, Kd = release });
+                    }
+                if (remoteButtons != null)
+                    foreach (var button in remoteButtons)
+                        releases.Add(new DATA { Type = PackageType.Mouse, Des = button.Target,
+                            Md = new MOUSEDATA { X = Event.MOVE_MOUSE_RELATIVE, Y = Event.MOVE_MOUSE_RELATIVE,
+                                dwFlags = button.Message, WheelDelta = button.Button } });
+                if (previous != Common.MachineID && previous != ID.NONE)
+                    releases.Add(new DATA { Type = PackageType.HideMouse, Des = previous });
+                var point = Common.LastPos;
+                NativeMethods.GetCursorPos(ref point);
+                Event.ReturnToLocalControl(point);
+                easyMouseKeys.Clear();
+                remoteKeys?.Clear(); remoteButtons?.Clear();
+                emergencyBackspaceDown = true;
+                ResetLastSwitchKeys();
+                Logger.Log($"Emergency keyboard return: restored local control from {previous}.");
+                if (transport != null && releases.Count != 0)
+                    _ = Task.Run(() => transport.ReleaseInput(releases));
+                return 1;
+            }
+
             hookCallbackKeybdData.dwFlags = keyboardHookStruct.Flags;
             hookCallbackKeybdData.wVk = (short)keyboardHookStruct.VkCode;
 
@@ -307,6 +369,10 @@ namespace MouseWithoutBorders.Class
                 }
 
                 KeyboardEvent(hookCallbackKeybdData);
+                var keyOwner = (Common.DesMachineID, keyboardHookStruct.VkCode);
+                if (up) remoteKeys?.Remove(keyOwner);
+                else if (Common.DesMachineID != Common.MachineID && Common.DesMachineID != ID.NONE)
+                    (remoteKeys ??= new())[keyOwner] = hookCallbackKeybdData;
             }
 
             if (Common.DesMachineID == ID.NONE || Common.DesMachineID == ID.ALL || Common.DesMachineID == Common.MachineID

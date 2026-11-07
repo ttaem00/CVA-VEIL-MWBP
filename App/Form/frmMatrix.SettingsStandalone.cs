@@ -380,7 +380,9 @@ internal partial class FrmMatrix
             var shortcuts = new SettingsStack();
             AddOption(shortcuts, checkBoxEnableKeyboardShortcuts, "Off", "Assignments below are preserved while shortcuts are disabled.");
             checkBoxEnableKeyboardShortcuts.Font = new Font(Font, FontStyle.Bold);
-            shortcuts.Add(Explanation(Ui.Text("Changes on this page are saved automatically.")));
+            var emergencyHelp = Explanation(Ui.Text("Saved automatically. Emergency local control: Ctrl+Alt+Backspace (always available)."));
+            emergencyHelp.Name = "emergencyInputHelp";
+            shortcuts.Add(emergencyHelp);
             var shortcutColumns = new SettingsStack(sideBySide: true);
             var shortcutGroups = new[] { new TableLayoutPanel(), new TableLayoutPanel() };
             foreach (var group in shortcutGroups)

@@ -25,6 +25,7 @@ public sealed class MonitorInputIntegrationTests
     private Point originalPosition;
     private string originalName = null!;
     private int originalPaintCount;
+    private int originalSwitchCount;
     private string folder = null!;
 
     [TestInitialize]
@@ -33,6 +34,7 @@ public sealed class MonitorInputIntegrationTests
         originalSettings = Setting.Values; originalTransport = Common.Sk;
         originalDestination = MachineStuff.desMachineID; originalNewDestination = MachineStuff.newDesMachineID;
         originalPosition = Common.LastPos; originalPaintCount = Common.PaintCount;
+        originalSwitchCount = MachineStuff.SwitchLocation.Count;
         originalName = Common.MachineName; Common.MachineName = "A";
         var matrix = typeof(MachineStuff).GetField("mcMatrix", StaticFields)!;
         saved.Add((matrix, null, matrix.GetValue(null))); matrix.SetValue(null, null);
@@ -69,6 +71,7 @@ public sealed class MonitorInputIntegrationTests
             Setting.Values = originalSettings; Common.Sk = originalTransport;
             MachineStuff.desMachineID = originalDestination; MachineStuff.newDesMachineID = originalNewDestination;
             Common.LastPos = originalPosition; Common.PaintCount = originalPaintCount;
+            MachineStuff.SwitchLocation.Count = originalSwitchCount;
             Common.MachineName = originalName;
             foreach (var value in saved) value.Field.SetValue(value.Owner, value.Value);
             Directory.Delete(folder, true);
@@ -303,6 +306,234 @@ public sealed class MonitorInputIntegrationTests
         finally { held.Clear(); foreach (int key in before) held.Update(key, true); InitAndCleanup.PleaseReopenSocket = originalReopen; }
     }
 
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void UnavailableRemoteDestinationCannotSwallowEitherLocalDevice(bool keyboard)
+    {
+        MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+        MachineStuff.SwitchLocation.Count = 5;
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        hook.MouseEvent += Event.MouseEvent;
+        hook.KeyboardEvent += Event.KeybdEvent;
+        int result = keyboard ? InvokeKeyboard(hook, 0x87, false)
+            : InvokeMouse(hook, WM.WM_MOUSEMOVE, new Point(800, 450), 0);
+        Assert.AreEqual(0, result, "A missing transport must let the physical event reach Windows immediately.");
+        Assert.AreEqual((ID)101, Common.DesMachineID);
+        Assert.AreEqual((ID)101, MachineStuff.NewDesMachineID);
+        Assert.AreEqual(0, MachineStuff.SwitchLocation.Count, "A pending remote warp must not undo recovery.");
+        if (keyboard) InvokeKeyboard(hook, 0x87, true);
+    }
+
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void MissingMouseGeometryReturnsLocallyWithoutBlockingKeyboardOnlyConnections(bool keyboard)
+    {
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(1);
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.Connect(listener.LocalEndPoint!); using var accepted = listener.Accept();
+        using var tcp = new TcpSk(false, socket, SocketStatus.Connected, "B") { MachineId = 303 };
+        using var wire = new MemoryStream();
+        typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(tcp, wire);
+        var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff));
+        transport.TcpSocketsLock = new object();
+        typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, new List<TcpSk> { tcp });
+        Common.Sk = transport;
+        MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)303;
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        hook.MouseEvent += Event.MouseEvent; hook.KeyboardEvent += Event.KeybdEvent;
+        int result = keyboard ? InvokeKeyboard(hook, 0x87, false)
+            : InvokeMouse(hook, WM.WM_LBUTTONDOWN, new Point(800, 450), 0);
+        Assert.AreEqual(keyboard ? 1 : 0, result);
+        Assert.AreEqual(keyboard ? (ID)303 : (ID)101, Common.DesMachineID);
+        Assert.AreEqual(keyboard ? (long)Package.PACKAGE_SIZE : 0L, wire.Length,
+            "Mouse routing needs geometry; a keyboard-only connection must remain usable.");
+        if (keyboard) InvokeKeyboard(hook, 0x87, true);
+    }
+
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void EmergencyReturnIgnoresStaleKeysAndTheShortcutMasterSwitch(bool shortcutsEnabled)
+    {
+        var held = (HeldKeyChord)typeof(InputHook).GetField("easyMouseKeys", StaticFields)!.GetValue(null)!;
+        var before = held.DownKeys;
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        int forwarded = 0; hook.KeyboardEvent += _ => forwarded++;
+        try
+        {
+            held.Clear();
+            synthetic.KeyboardShortcutsEnabled = shortcutsEnabled;
+            MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)101;
+            InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.LControlKey, false);
+            InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.RMenu, false);
+            held.Update(20, true); // Missed Caps Lock UP after a game transition.
+            MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+            MachineStuff.SwitchLocation.Count = 5;
+            forwarded = 0;
+            Assert.AreEqual(0, InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.Back, false, ownInjected: true));
+            Assert.AreEqual((ID)202, Common.DesMachineID, "An injected peer key must not invoke the physical emergency escape.");
+            Assert.AreEqual(1, InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.Back, false));
+            Assert.AreEqual((ID)101, Common.DesMachineID, "The reserved escape must run before exact configurable-chord matching or network forwarding.");
+            Assert.AreEqual((ID)101, MachineStuff.NewDesMachineID);
+            Assert.AreEqual(0, MachineStuff.SwitchLocation.Count);
+            Assert.AreEqual(0, forwarded, "The emergency key must never be sent to the old target.");
+            Assert.AreEqual(0, held.DownKeys.Length, "Stale activation keys must not immediately send the pointer away again.");
+            Assert.IsFalse(InputHook.EasyMouseKeyDown);
+            Assert.AreEqual(1, InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.Back, false), "Auto-repeat must not delete local content.");
+            Assert.AreEqual(1, InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.Back, true));
+            Assert.AreEqual(0, forwarded);
+            Assert.AreEqual(0, InvokeKeyboard(hook, 0x87, false));
+            Assert.AreEqual(1, forwarded);
+        }
+        finally { held.Clear(); foreach (int key in before) held.Update(key, true); }
+    }
+
+    [DataTestMethod]
+    [DataRow(WM.WM_LBUTTONDOWN, WM.WM_LBUTTONUP, 0)]
+    [DataRow(WM.WM_RBUTTONDOWN, WM.WM_RBUTTONUP, 0)]
+    [DataRow(WM.WM_MBUTTONDOWN, WM.WM_MBUTTONUP, 0)]
+    [DataRow(WM.WM_XBUTTONDOWN, WM.WM_XBUTTONUP, 1)]
+    [DataRow(WM.WM_XBUTTONDOWN, WM.WM_XBUTTONUP, 2)]
+    public void EmergencyReturnsBeforeABlockedPeerAndReleasesOnlyForwardedHolds(int down, int up, int button)
+    {
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(1);
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.Connect(listener.LocalEndPoint!); using var accepted = listener.Accept();
+        using var wire = new MemoryStream();
+        using var tcp = new TcpSk(false, socket, SocketStatus.Connected, "B") { MachineId = 202 };
+        typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(tcp, wire);
+        var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff)); transport.TcpSocketsLock = new object();
+        typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, new List<TcpSk> { tcp }); Common.Sk = transport;
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        hook.KeyboardEvent += Event.KeybdEvent; hook.MouseEvent += Event.MouseEvent;
+        var held = (HeldKeyChord)typeof(InputHook).GetField("easyMouseKeys", StaticFields)!.GetValue(null)!;
+        var before = held.DownKeys; Task<int>? escape = null;
+        try
+        {
+            held.Clear(); synthetic.KeyboardShortcutsEnabled = false;
+            MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+            InvokeKeyboard(hook, 'W', false);
+            InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.LControlKey, false);
+            InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.RMenu, false, extended: true);
+            InvokeMouse(hook, down, new Point(800, 450), button);
+            Assert.AreEqual(4L * Package.PACKAGE_SIZE, wire.Length);
+            wire.SetLength(0); wire.Position = 0;
+            lock (tcp)
+            {
+                escape = Task.Run(() => InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.Back, false));
+                Assert.IsTrue(escape.Wait(TimeSpan.FromSeconds(2)), "Recovery must not wait for the peer's TCP frame lock.");
+                Assert.AreEqual(1, escape.Result); Assert.AreEqual((ID)101, Common.DesMachineID);
+                Assert.AreEqual(0, InvokeKeyboard(hook, 0x87, false), "Local keys must work while remote cleanup is blocked.");
+                Assert.AreEqual(0L, wire.Length);
+            }
+            Assert.IsTrue(SpinWait.SpinUntil(() => { lock (tcp) return wire.Length >= 5L * Package.PACKAGE_SIZE; }, TimeSpan.FromSeconds(3)));
+            DATA[] frames;
+            lock (tcp) frames = wire.ToArray().Chunk(Package.PACKAGE_SIZE).Select(bytes => new DATA(bytes)).ToArray();
+            foreach (var frame in frames) frame.Type = (PackageType)((uint)frame.Type & 0xff);
+            var keys = frames.Where(frame => frame.Type == PackageType.Keyboard).ToArray();
+            CollectionAssert.AreEquivalent(new[] { (int)'W', (int)System.Windows.Forms.Keys.LControlKey, (int)System.Windows.Forms.Keys.RMenu }, keys.Select(frame => frame.Kd.wVk).ToArray());
+            Assert.IsTrue(keys.All(frame => (frame.Kd.dwFlags & (int)WM.LLKHF.UP) != 0));
+            Assert.AreNotEqual(0, keys.Single(frame => frame.Kd.wVk == (int)System.Windows.Forms.Keys.RMenu).Kd.dwFlags & (int)WM.LLKHF.EXTENDED);
+            var mouse = frames.Single(frame => frame.Type == PackageType.Mouse);
+            Assert.AreEqual(up, mouse.Md.dwFlags); Assert.AreEqual(button, mouse.Md.WheelDelta);
+            Assert.AreEqual(Event.MOVE_MOUSE_RELATIVE, mouse.Md.X, "A cleanup UP must not warp the remote pointer.");
+            Assert.AreEqual(PackageType.HideMouse, frames.Last().Type);
+        }
+        finally
+        {
+            escape?.Wait(TimeSpan.FromSeconds(3));
+            lock (tcp) { }
+            held.Clear(); foreach (int key in before) held.Update(key, true);
+        }
+    }
+
+    [DataTestMethod]
+    [DataRow(false, false)]
+    [DataRow(true, false)]
+    [DataRow(false, true)]
+    public void DelayedEmergencyCleanupCannotReleaseAResumedOrRetiredOwnersInput(bool all, bool retired)
+    {
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(1);
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.Connect(listener.LocalEndPoint!); using var accepted = listener.Accept();
+        using var wire = new MemoryStream();
+        using var tcp = new TcpSk(false, socket, SocketStatus.Connected, "B") { MachineId = 202 };
+        typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(tcp, wire);
+        var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff)); transport.TcpSocketsLock = new object();
+        typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, new List<TcpSk> { tcp }); Common.Sk = transport;
+        using var started = new ManualResetEventSlim(); Task cleanup;
+        MachineStuff.desMachineID = (ID)101;
+        lock (tcp)
+        {
+            cleanup = Task.Run(() => { started.Set(); transport.ReleaseInput([
+                new DATA { Type = PackageType.Keyboard, Des = (ID)202, Kd = new KEYBDDATA { wVk = 'W', dwFlags = (int)WM.LLKHF.UP } },
+                new DATA { Type = PackageType.Mouse, Des = (ID)202, Md = new MOUSEDATA { dwFlags = WM.WM_RBUTTONUP } }]); });
+            Assert.IsTrue(started.Wait(TimeSpan.FromSeconds(2)));
+            if (retired) Common.Sk = null!;
+            else MachineStuff.desMachineID = all ? ID.ALL : (ID)202;
+        }
+        Assert.IsTrue(cleanup.Wait(TimeSpan.FromSeconds(3)));
+        Assert.AreEqual(0L, wire.Length);
+    }
+
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void EmergencyRetainsEachRecipientsHoldsWhenKeysRepeatAcrossTwoPeers(bool releaseOnSecondPeer)
+    {
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(2);
+        using var firstSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        firstSocket.Connect(listener.LocalEndPoint!); using var firstReceiver = listener.Accept();
+        using var secondSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        secondSocket.Connect(listener.LocalEndPoint!); using var secondReceiver = listener.Accept();
+        using var firstWire = new MemoryStream(); using var secondWire = new MemoryStream();
+        using var first = new TcpSk(false, firstSocket, SocketStatus.Connected, "B") { MachineId = 202 };
+        using var second = new TcpSk(false, secondSocket, SocketStatus.Connected, "C") { MachineId = 303 };
+        typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(first, firstWire);
+        typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(second, secondWire);
+        var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff)); transport.TcpSocketsLock = new object();
+        typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, new List<TcpSk> { first, second }); Common.Sk = transport;
+        MonitorTopology.AcceptPeer(303, [new("C1", 0, 0, 800, 600)]);
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        hook.KeyboardEvent += Event.KeybdEvent; hook.MouseEvent += Event.MouseEvent;
+        var held = (HeldKeyChord)typeof(InputHook).GetField("easyMouseKeys", StaticFields)!.GetValue(null)!;
+        var before = held.DownKeys;
+        try
+        {
+            held.Clear(); synthetic.KeyboardShortcutsEnabled = false;
+            foreach (ID target in new[] { (ID)202, (ID)303 })
+            {
+                MachineStuff.desMachineID = MachineStuff.newDesMachineID = target;
+                InvokeKeyboard(hook, 'W', false);
+                InvokeMouse(hook, WM.WM_RBUTTONDOWN, new Point(800, 450), 0);
+            }
+            if (releaseOnSecondPeer)
+            {
+                InvokeKeyboard(hook, 'W', true);
+                InvokeMouse(hook, WM.WM_RBUTTONUP, new Point(800, 450), 0);
+            }
+            InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.LControlKey, false);
+            InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.LMenu, false);
+            firstWire.SetLength(0); firstWire.Position = 0; secondWire.SetLength(0); secondWire.Position = 0;
+            InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.Back, false);
+            Assert.IsTrue(SpinWait.SpinUntil(() => { lock (first) lock (second)
+                return firstWire.Length == 2L * Package.PACKAGE_SIZE && secondWire.Length == (releaseOnSecondPeer ? 3L : 5L) * Package.PACKAGE_SIZE; }, TimeSpan.FromSeconds(3)));
+            foreach (var (tcp, wire, needsRelease) in new[] { (first, firstWire, true), (second, secondWire, !releaseOnSecondPeer) })
+            {
+                DATA[] frames; lock (tcp) frames = wire.ToArray().Chunk(Package.PACKAGE_SIZE).Select(bytes => new DATA(bytes)).ToArray();
+                Assert.AreEqual(needsRelease ? 1 : 0, frames.Count(frame => ((uint)frame.Type & 0xff) == (uint)PackageType.Keyboard && frame.Kd.wVk == 'W'));
+                Assert.AreEqual(needsRelease ? 1 : 0, frames.Count(frame => ((uint)frame.Type & 0xff) == (uint)PackageType.Mouse && frame.Md.dwFlags == WM.WM_RBUTTONUP));
+            }
+        }
+        finally { lock (first) lock (second) { } held.Clear(); foreach (int key in before) held.Update(key, true); }
+    }
+
     [TestMethod]
     public void RecordingReceivesPlusInjectedKeysAndPassesReleasesWithoutForwarding()
     {
@@ -344,13 +575,13 @@ public sealed class MonitorInputIntegrationTests
         finally { poolField.SetValue(null, pool); }
     }
 
-    private static int InvokeKeyboard(InputHook hook, int key, bool up, bool ownInjected = false)
+    private static int InvokeKeyboard(InputHook hook, int key, bool up, bool ownInjected = false, bool extended = false)
     {
         IntPtr payload = Marshal.AllocHGlobal(24);
         try
         {
             for (int offset = 0; offset < 24; offset += 4) Marshal.WriteInt32(payload, offset, 0);
-            Marshal.WriteInt32(payload, 0, key); Marshal.WriteInt32(payload, 8, (up ? 0x80 : 0) | (ownInjected ? 0x10 : 0));
+            Marshal.WriteInt32(payload, 0, key); Marshal.WriteInt32(payload, 8, (up ? 0x80 : 0) | (ownInjected ? 0x10 : 0) | (extended ? 1 : 0));
             if (ownInjected) Marshal.WriteIntPtr(payload, 16, InputSimulation.InjectedInputTag);
             return (int)typeof(InputHook).GetMethod("KeyboardHookProc", InstanceFields)!.Invoke(hook, [0, up ? WM.WM_KEYUP : WM.WM_KEYDOWN, payload])!;
         }
