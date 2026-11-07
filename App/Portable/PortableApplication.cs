@@ -39,7 +39,7 @@ internal static class PortableApplication
 
     internal static string CurrentExecutablePath => Path.GetFullPath(Application.ExecutablePath);
 
-    internal static string CurrentSettingsPath => SettingsPathForExecutable(CurrentExecutablePath);
+    internal static string CurrentSettingsPath => LogonSession.Active ? LogonSession.SettingsPath : SettingsPathForExecutable(CurrentExecutablePath);
 
     internal static string SettingsPathForExecutable(string executable) =>
         Path.GetFullPath(executable).Equals(PrivilegedInput.ProtectedExecutable, StringComparison.OrdinalIgnoreCase)

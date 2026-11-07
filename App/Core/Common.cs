@@ -852,7 +852,8 @@ internal static class Common
 
         if (sk != null)
         {
-            lock (sk.TcpSocketsLock)
+            if (!InputSendBudget.Enter(sk.TcpSocketsLock)) return false;
+            try
             {
                 if (sk.TcpSockets != null)
                 {
@@ -865,6 +866,7 @@ internal static class Common
                     }
                 }
             }
+            finally { Monitor.Exit(sk.TcpSocketsLock); }
         }
 
         return false;
@@ -898,12 +900,18 @@ internal static class Common
                 bool updateClientSockets = false;
 
                 TcpSk[] targets;
-                lock (sk.TcpSocketsLock)
+                if (!InputSendBudget.Enter(sk.TcpSocketsLock))
+                {
+                    Event.ReturnToLocalControl(Common.LastPos);
+                    return;
+                }
+                try
                 {
                     targets = sk.TcpSockets.Where(t => t != null && t.BackingSocket != null
                         && (t.Status == SocketStatus.Connected || (t.Status == SocketStatus.Handshaking && includeHandShakingSockets))
                         && (t.MachineId == (uint)data.Des || (data.Des == ID.ALL && t.MachineId != exceptDes && MachineStuff.InMachineMatrix(t.MachineName)))).ToArray();
                 }
+                finally { Monitor.Exit(sk.TcpSocketsLock); }
                 foreach (TcpSk t in targets)
                 {
                     try
@@ -918,13 +926,17 @@ internal static class Common
                     }
                     catch (ExpectedSocketException)
                     {
+                        if (InputSendBudget.Active) t.BackingSocket?.Dispose();
                         t.BackingSocket = null; // To be removed at CloseAnUnusedSocket()
+                        if (InputSendBudget.Active) InputSimulation.PeerDisconnected(t.MachineId);
                         updateClientSockets = true;
                     }
                     catch (Exception e)
                     {
                         Logger.Log(e);
+                        if (InputSendBudget.Active) t.BackingSocket?.Dispose();
                         t.BackingSocket = null; // To be removed at CloseAnUnusedSocket()
+                        if (InputSendBudget.Active) InputSimulation.PeerDisconnected(t.MachineId);
                         updateClientSockets = true;
                     }
                 }
@@ -933,7 +945,7 @@ internal static class Common
                 {
                     Logger.LogDebug("********** No active connection found for the remote machine! **********" + data.Des.ToString());
 
-                    if (data.Des == ID.NONE || MachineStuff.RemoveDeadMachines(data.Des))
+                    if (InputSendBudget.Active || data.Des == ID.NONE || MachineStuff.RemoveDeadMachines(data.Des))
                     {
                         // SwitchToMachine(MachineName.Trim());
                         MachineStuff.NewDesMachineID = DesMachineID = MachineID;
@@ -946,7 +958,8 @@ internal static class Common
 
                 if (updateClientSockets)
                 {
-                    MachineStuff.UpdateClientSockets("SkSend");
+                    if (InputSendBudget.Active) InitAndCleanup.PleaseReopenSocket = InitAndCleanup.REOPEN_WHEN_WSAECONNRESET;
+                    else MachineStuff.UpdateClientSockets("SkSend");
                 }
             }
             catch (Exception e)

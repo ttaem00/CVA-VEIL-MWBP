@@ -392,7 +392,9 @@ namespace MouseWithoutBorders
             try
             {
                 // Desktop changes do not change the owner of authenticated transport.
-                if (Common.CurrentProcess.SessionId != NativeMethods.WTSGetActiveConsoleSessionId())
+                if (count % 20 == 0) Common.InputCallbackForm?.CheckInputHealth();
+                if (Common.CurrentProcess.SessionId != NativeMethods.WTSGetActiveConsoleSessionId()
+                    || LogonSession.Active && !WinAPI.IsMyDesktopActive())
                 {
                     myDesktopNotActive = true;
 

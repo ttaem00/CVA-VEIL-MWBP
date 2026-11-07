@@ -17,7 +17,7 @@ public sealed class IdlePulseTests
     {
         var observations = new List<Point>();
         using var ready = new ManualResetEventSlim(); using var stop = new ManualResetEventSlim();
-        int armed = 0;
+        int armed = 0, outsideMovement = 0;
         Exception? pumpFailure = null;
         int flagsOffset = Marshal.OffsetOf<MouseEvent>(nameof(MouseEvent.Flags)).ToInt32();
         int extraOffset = Marshal.OffsetOf<MouseEvent>(nameof(MouseEvent.Extra)).ToInt32();
@@ -25,12 +25,15 @@ public sealed class IdlePulseTests
         {
             // Inspect coordinates only for our tagged synthetic movement. Other
             // mouse input passes through without being copied or recorded.
-            if (code >= 0 && message == (IntPtr)WM.WM_MOUSEMOVE && Volatile.Read(ref armed) != 0
-                && (Marshal.ReadInt32(data, flagsOffset) & 1) != 0
-                && Marshal.ReadIntPtr(data, extraOffset) == InputSimulation.InjectedInputTag)
+            if (code >= 0 && message == (IntPtr)WM.WM_MOUSEMOVE && Volatile.Read(ref armed) != 0)
             {
-                var input = Marshal.PtrToStructure<MouseEvent>(data);
-                observations.Add(input.Point);
+                if ((Marshal.ReadInt32(data, flagsOffset) & 1) != 0
+                    && Marshal.ReadIntPtr(data, extraOffset) == InputSimulation.InjectedInputTag)
+                {
+                    var input = Marshal.PtrToStructure<MouseEvent>(data);
+                    observations.Add(input.Point);
+                }
+                else Interlocked.Exchange(ref outsideMovement, 1); // Boolean only; never record physical coordinates.
             }
             return CallNextHookEx(IntPtr.Zero, code, message, data);
         };
@@ -60,6 +63,7 @@ public sealed class IdlePulseTests
             pump.Start();
             Assert.IsTrue(ready.Wait(TimeSpan.FromSeconds(3)), "The native observation pump did not start.");
             Assert.IsNull(pumpFailure);
+            Volatile.Write(ref armed, 1);
             Assert.IsTrue(NativeMethods.GetCursorPos(ref before));
             idleBefore = LastInputTick();
             Assert.IsTrue(SpinWait.SpinUntil(() => unchecked((uint)Environment.TickCount) != idleBefore, TimeSpan.FromSeconds(1)),
@@ -79,6 +83,8 @@ public sealed class IdlePulseTests
             Common.PaintCount = previousPaintCount;
         }
         Assert.IsNull(pumpFailure);
+        if (Volatile.Read(ref outsideMovement) != 0)
+            Assert.Inconclusive("External mouse input overlapped the native idle/cursor measurement; this is not a product PASS.");
         Assert.AreNotEqual(idleBefore, idleAfterCall, "The native idle timestamp must actually change.");
         Assert.IsTrue(unchecked(idleAfterCall - callStarted) <= unchecked(callFinished - callStarted),
             $"The refreshed idle timestamp must belong to the PokeMyself call: before={idleBefore}, after={idleAfterCall}, call=[{callStarted},{callFinished}].");

@@ -14,6 +14,10 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 using MouseWithoutBorders.Core;
 
@@ -25,6 +29,47 @@ namespace MouseWithoutBorders.Class
     {
         // Identifies our own injection, not input from CRD or another local source.
         internal static readonly System.IntPtr InjectedInputTag = new(0x4D574250);
+
+        private sealed class RemoteHolds
+        {
+            internal TcpSk Owner;
+            internal readonly Dictionary<long, NativeMethods.INPUT64> Releases = new();
+        }
+        private static readonly Dictionary<uint, RemoteHolds> remoteHolds = new();
+        [ThreadStatic] private static RemoteHolds receiving;
+
+        internal static void ReceiveHeldInput(TcpSk sender, Action apply)
+        {
+            Common.DoSomethingInTheInputSimulationThread(() =>
+            {
+                if (!remoteHolds.TryGetValue(sender.MachineId, out var state)) remoteHolds[sender.MachineId] = state = new();
+                if (state.Owner != null && !IsConnected(state.Owner) && !ReleaseRemoteHolds(state, SendInputEx)) return;
+                state.Owner = sender;
+                var previous = receiving;
+                try { receiving = state; apply(); }
+                finally { receiving = previous; }
+            });
+        }
+
+        private static bool IsConnected(TcpSk peer) => peer.Status == SocketStatus.Connected && peer.BackingSocket != null;
+
+        internal static void PeerDisconnected(uint sender) => _ = Task.Run(() =>
+            Common.DoSomethingInTheInputSimulationThread(() =>
+            {
+                if (remoteHolds.TryGetValue(sender, out var state) && state.Owner != null && !IsConnected(state.Owner))
+                    ReleaseRemoteHolds(state, SendInputEx);
+            }));
+
+        private static bool ReleaseRemoteHolds(RemoteHolds state, Func<NativeMethods.INPUT64, uint> inject)
+        {
+            foreach (var entry in state.Releases.ToArray())
+            {
+                // Another live controller still owns this DOWN; its own UP will release it.
+                if (remoteHolds.Values.Any(other => !ReferenceEquals(other, state) && other.Releases.ContainsKey(entry.Key))
+                    || inject(entry.Value) != 0) state.Releases.Remove(entry.Key);
+            }
+            return state.Releases.Count == 0;
+        }
 
         private InputSimulation()
         {
@@ -44,6 +89,8 @@ namespace MouseWithoutBorders.Class
 
             Common.DoSomethingInTheInputSimulationThread(() =>
             {
+                try
+                {
                 if (!movementOnly)
                 {
                     if (PrivilegedInput.HasHeldInput)
@@ -54,6 +101,8 @@ namespace MouseWithoutBorders.Class
                     sent = NativeMethods.SendInput64(1, [input], Marshal.SizeOf(input));
                 }
                 if (sent == 0) PrivilegedInput.TrySend(input, out sent);
+                }
+                finally { if (sent != 0 && receiving != null) PrivilegedInput.TrackHeldInput(receiving.Releases, input); }
             });
             return sent;
         }

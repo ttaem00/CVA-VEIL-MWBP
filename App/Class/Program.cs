@@ -78,6 +78,9 @@ namespace MouseWithoutBorders.Class
         {
 #if PORTABLE_SINGLE_FILE
             string[] startupArgs = Environment.GetCommandLineArgs();
+            bool logonRole;
+            try { logonRole = LogonSession.Prepare(startupArgs); }
+            catch (Exception error) { Console.Error.WriteLine(error.Message); Environment.ExitCode = 1; return; }
             if (PortableInstallLifecycle.TryRunNetworkSetup(startupArgs)) return;
             if (PrivilegedInput.TryRun(startupArgs)) return;
             if (PortableApplication.IsClipboardHelperInvocation(startupArgs))
@@ -93,7 +96,7 @@ namespace MouseWithoutBorders.Class
             if (PortableInstallLifecycle.RunLaunchHelper(startupArgs)) return;
             if (PortableApplication.TryRunUninstall(startupArgs)) return;
 
-            if (!PortableApplication.PrepareFirstLaunch())
+            if (!logonRole && !PortableApplication.PrepareFirstLaunch())
             {
                 return;
             }
@@ -101,7 +104,7 @@ namespace MouseWithoutBorders.Class
             // Do not touch Setting.Values until the first-launch choice has created
             // (or located) the adjacent preferences file. Initializing it earlier
             // creates default preferences and leaves the first process hidden.
-            StandaloneBootstrap.InitializeAfterFirstLaunch();
+            if (!logonRole) StandaloneBootstrap.InitializeAfterFirstLaunch();
 #endif
 
             ManagedCommon.Logger.InitializeLogger("\\MouseWithoutBorders\\Logs");
@@ -175,7 +178,7 @@ namespace MouseWithoutBorders.Class
 
                 if (serviceMode || runningAsSystem)
                 {
-                    if (args.Length > 2)
+                    if (!LogonSession.Active && args.Length > 2)
                     {
                         SettingsHelper.UserLocalAppDataPath = args[2].Trim();
                     }
@@ -293,7 +296,7 @@ namespace MouseWithoutBorders.Class
                 Core.Helper.WndProcCounter++;
 
                 var formScreen = new FrmScreen();
-                using var pairing = Pairing = StartPairing(new WindowsFormsSynchronizationContext());
+                using var pairing = Pairing = LogonSession.Active ? null : StartPairing(new WindowsFormsSynchronizationContext());
                 Application.Run(formScreen);
 
                 etwTrace?.Dispose();

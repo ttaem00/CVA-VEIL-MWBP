@@ -5,6 +5,8 @@
 using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 // <summary>
@@ -32,6 +34,8 @@ namespace MouseWithoutBorders
         private void FrmInputCallback_Load(object sender, EventArgs e)
         {
             InstallKeyboardAndMouseHook();
+            if (!InputHook.ObserveDevices(Handle)) Logger.Log("Raw input health observation could not be registered.");
+            if (!RegisterRecoveryHotkey()) Logger.Log("Windows emergency input hotkey is unavailable; another application may own it.");
             Left = 0;
             Top = 0;
             Width = 0;
@@ -46,10 +50,47 @@ namespace MouseWithoutBorders
 
         private void FrmInputCallback_FormClosing(object sender, FormClosingEventArgs e)
         {
+            InputHook.ObserveDevices(IntPtr.Zero);
+            UnregisterHotKey(Handle, RecoveryHotkeyId);
             if (e.CloseReason != CloseReason.WindowsShutDown)
             {
                 // e.Cancel = true;
             }
+        }
+
+        private int healthCheckPending;
+        private int forceRecovery;
+        internal const int RecoveryHotkeyId = 0x4d57;
+        [DllImport("user32.dll", SetLastError = true)] private static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint key);
+        [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr window, int id);
+        internal bool RegisterRecoveryHotkey() => RegisterHotKey(Handle, RecoveryHotkeyId, 0x4003, 8);
+
+        internal void CheckInputHealth(bool force = false)
+        {
+            if (force) Interlocked.Exchange(ref forceRecovery, 1);
+            if (IsDisposed || Interlocked.Exchange(ref healthCheckPending, 1) != 0) return;
+            try
+            {
+                BeginInvoke(() =>
+                {
+                    try
+                    {
+                        bool requested = Interlocked.Exchange(ref forceRecovery, 0) != 0;
+                        if (ReferenceEquals(Common.InputCallbackForm, this)) Common.Hook?.RecoverMissedInput(requested);
+                    }
+                    finally { Interlocked.Exchange(ref healthCheckPending, 0); }
+                });
+            }
+            catch (InvalidOperationException) { Interlocked.Exchange(ref healthCheckPending, 0); }
+        }
+
+        protected override void WndProc(ref Message message)
+        {
+            if (message.Msg == 0x00ff && ReferenceEquals(Common.InputCallbackForm, this))
+                Common.Hook?.ObserveRawInput(message.LParam);
+            if (message.Msg == 0x0312 && message.WParam.ToInt32() == RecoveryHotkeyId)
+                CheckInputHealth(force: true);
+            base.WndProc(ref message); // DefWindowProc owns WM_INPUT cleanup.
         }
 
         internal void InstallKeyboardAndMouseHook()

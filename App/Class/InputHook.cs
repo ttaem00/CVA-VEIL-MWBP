@@ -28,7 +28,7 @@ using MouseWithoutBorders.Core;
 
 namespace MouseWithoutBorders.Class
 {
-    internal class InputHook
+    internal partial class InputHook
     {
         internal delegate bool MouseEvHandler(MOUSEDATA e, int dx, int dy);
 
@@ -123,7 +123,7 @@ namespace MouseWithoutBorders.Class
             Stop();
         }
 
-        internal void Start()
+        internal void Start(bool showError = true)
         {
             int le;
             bool er = false;
@@ -175,7 +175,7 @@ namespace MouseWithoutBorders.Class
 
             if (er)
             {
-                if (!Common.RunOnLogonDesktop && !Common.RunOnScrSaverDesktop)
+                if (showError && !Common.RunOnLogonDesktop && !Common.RunOnScrSaverDesktop)
                 {
                     _ = MessageBox.Show(
                         "Error installing keyboard/Mouse hook!",
@@ -245,7 +245,9 @@ namespace MouseWithoutBorders.Class
         private int MouseHookProc(int nCode, int wParam, IntPtr lParam)
         {
             if (nCode < 0) return NativeMethods.CallNextHookEx(hMouseHook, nCode, wParam, lParam);
+            using var sendBudget = new InputSendBudget(true);
             mouseHookStruct = LParamToMouseLLHookStruct(lParam);
+            mouseHookSeenAt = Environment.TickCount64;
             Event.InputEventCount++;
             if ((mouseHookStruct.Flags & 1) != 0 && mouseHookStruct.DwExtraInfo == InputSimulation.InjectedInputTag)
             {
@@ -293,7 +295,9 @@ namespace MouseWithoutBorders.Class
         private int KeyboardHookProc(int nCode, int wParam, IntPtr lParam)
         {
             if (nCode < 0) return NativeMethods.CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
+            using var sendBudget = new InputSendBudget(true);
             keyboardHookStruct = LParamToKeyboardHookStruct(lParam);
+            keyboardHookSeenAt = Environment.TickCount64;
             byte modifier = ModifierBit(keyboardHookStruct.VkCode);
             bool up = (keyboardHookStruct.Flags & (int)WM.LLKHF.UP) != 0;
             Event.InputEventCount++;
@@ -328,33 +332,10 @@ namespace MouseWithoutBorders.Class
                 && easyMouseKeys.IsActive(EasyMouseOption.Ctrl, Array.Empty<int>())
                 && easyMouseKeys.IsActive(EasyMouseOption.Alt, Array.Empty<int>()))
             {
-                var previous = Common.DesMachineID;
-                var transport = Common.Sk;
-                var releases = new List<DATA>();
-                if (remoteKeys != null)
-                    foreach (var key in remoteKeys)
-                    {
-                        var release = key.Value;
-                        release.dwFlags |= (int)WM.LLKHF.UP;
-                        releases.Add(new DATA { Type = PackageType.Keyboard, Des = key.Key.Target, Kd = release });
-                    }
-                if (remoteButtons != null)
-                    foreach (var button in remoteButtons)
-                        releases.Add(new DATA { Type = PackageType.Mouse, Des = button.Target,
-                            Md = new MOUSEDATA { X = Event.MOVE_MOUSE_RELATIVE, Y = Event.MOVE_MOUSE_RELATIVE,
-                                dwFlags = button.Message, WheelDelta = button.Button } });
-                if (previous != Common.MachineID && previous != ID.NONE)
-                    releases.Add(new DATA { Type = PackageType.HideMouse, Des = previous });
-                var point = Common.LastPos;
-                NativeMethods.GetCursorPos(ref point);
-                Event.ReturnToLocalControl(point);
-                easyMouseKeys.Clear();
-                remoteKeys?.Clear(); remoteButtons?.Clear();
+                RestoreLocalControl();
                 emergencyBackspaceDown = true;
-                ResetLastSwitchKeys();
-                Logger.Log($"Emergency keyboard return: restored local control from {previous}.");
-                if (transport != null && releases.Count != 0)
-                    _ = Task.Run(() => transport.ReleaseInput(releases));
+                Common.InputCallbackForm?.CheckInputHealth(force: true);
+                Logger.Log("Emergency keyboard return: restored local control.");
                 return 1;
             }
 
@@ -384,6 +365,35 @@ namespace MouseWithoutBorders.Class
             {
                 return 1;
             }
+        }
+
+        private void RestoreLocalControl()
+        {
+            var previous = Common.DesMachineID;
+            var transport = Common.Sk;
+            var releases = new List<DATA>();
+            if (remoteKeys != null)
+                foreach (var key in remoteKeys)
+                {
+                    var release = key.Value;
+                    release.dwFlags |= (int)WM.LLKHF.UP;
+                    releases.Add(new DATA { Type = PackageType.Keyboard, Des = key.Key.Target, Kd = release });
+                }
+            if (remoteButtons != null)
+                foreach (var button in remoteButtons)
+                    releases.Add(new DATA { Type = PackageType.Mouse, Des = button.Target,
+                        Md = new MOUSEDATA { X = Event.MOVE_MOUSE_RELATIVE, Y = Event.MOVE_MOUSE_RELATIVE,
+                            dwFlags = button.Message, WheelDelta = button.Button } });
+            if (previous != Common.MachineID && previous != ID.NONE)
+                releases.Add(new DATA { Type = PackageType.HideMouse, Des = previous });
+            var point = Common.LastPos;
+            NativeMethods.GetCursorPos(ref point);
+            Event.ReturnToLocalControl(point);
+            easyMouseKeys.Clear();
+            remoteKeys?.Clear(); remoteButtons?.Clear();
+            ResetLastSwitchKeys();
+            if (transport != null && releases.Count != 0)
+                _ = Task.Run(() => transport.ReleaseInput(releases));
         }
 
         private int PassKeyboardEvent(int nCode, int wParam, IntPtr lParam, byte modifier, bool up)

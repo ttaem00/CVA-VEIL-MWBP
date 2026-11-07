@@ -250,6 +250,7 @@ namespace MouseWithoutBorders.Class
             if (observedMemory == null && !_settingsUtils.SettingsExists("MouseWithoutBorders"))
                 new MouseWithoutBordersSettings().Save(_settingsUtils);
             var settings = _settingsUtils.GetSettingsOrDefault<MouseWithoutBordersSettings>("MouseWithoutBorders");
+            if (LogonSession.Active) LogonSession.ValidatePreferences(settings);
             string document = JsonSerializer.Serialize(settings, SettingsUtils.SerializerOptions);
             lock (_loadingSettingsLock)
             {
