@@ -75,6 +75,7 @@ public sealed class ModifierOwnershipTests
         try { synthetic?.SaveSettingsSynchronously(); }
         finally
         {
+            WaitForInput();
             tcp?.Dispose(); accepted?.Dispose(); socket?.Dispose(); listener?.Dispose(); wire?.Dispose();
             Setting.Values = original; Common.Sk = originalTransport;
             MachineStuff.desMachineID = oldDestination; MachineStuff.newDesMachineID = oldNewDestination;
@@ -95,7 +96,7 @@ public sealed class ModifierOwnershipTests
         Assert.AreEqual(0, Invoke(key, false)); Assert.AreNotEqual((byte)0, LocalModifiers);
         Destination(202);
         Assert.AreEqual(0, Invoke(key, true), "A remote-routed real UP must also close its earlier local DOWN.");
-        Assert.AreEqual((byte)0, LocalModifiers); Assert.AreEqual((long)Package.PACKAGE_SIZE, wire.Length);
+        Assert.AreEqual((byte)0, LocalModifiers); WaitForInput(); Assert.AreEqual((long)Package.PACKAGE_SIZE, wire.Length);
         var packet = new DATA(wire.ToArray());
         Assert.AreEqual((ID)202, packet.Des); Assert.AreEqual(key, packet.Kd.wVk);
         Assert.AreNotEqual(0, packet.Kd.dwFlags & (int)WM.LLKHF.UP);
@@ -112,6 +113,7 @@ public sealed class ModifierOwnershipTests
         Destination(202);
         Assert.AreEqual(1, Invoke(key, false)); Assert.AreEqual((byte)0, LocalModifiers);
         Assert.AreEqual(1, Invoke(key, true)); Assert.AreEqual((byte)0, LocalModifiers);
+        WaitForInput();
         Assert.AreEqual(2L * Package.PACKAGE_SIZE, wire.Length);
     }
 
@@ -136,6 +138,7 @@ public sealed class ModifierOwnershipTests
         byte bit = (byte)typeof(InputHook).GetMethod("ModifierBit", Static)!.Invoke(null, [key])!;
         typeof(InputHook).GetField("localModifiers", Instance)!.SetValue(hook, bit); Destination(202);
         Assert.AreEqual(0, Invoke(key, true)); Assert.AreEqual((byte)0, LocalModifiers);
+        WaitForInput();
         Assert.AreEqual((long)Package.PACKAGE_SIZE, wire.Length);
     }
 
@@ -150,6 +153,8 @@ public sealed class ModifierOwnershipTests
     }
 
     private byte LocalModifiers => (byte)typeof(InputHook).GetField("localModifiers", Instance)!.GetValue(hook)!;
+    private void WaitForInput() => Assert.IsTrue(SpinWait.SpinUntil(() => tcp.InputWriter == null || tcp.InputWriter.IsIdle,
+        TimeSpan.FromSeconds(3)), "The modifier FIFO did not drain.");
 
     [TestMethod]
     public async Task ChangingMultipleModeDoesNotWaitForTheReceiverInputLock()

@@ -87,10 +87,7 @@ internal static class Clipboard
         HasSwitchedMachineSinceLastCopy = true;
         ID target = Common.DesMachineID;
         if (target != Common.MachineID)
-            _ = Task.Run(() =>
-            {
-                if (Common.DesMachineID == target) Common.SendPackage(target, PackageType.MachineSwitched);
-            });
+            Common.SendPackage(target, PackageType.MachineSwitched);
         else if (clipboardCopiedTime != 0)
         {
             clipboardCopiedTime = 0;

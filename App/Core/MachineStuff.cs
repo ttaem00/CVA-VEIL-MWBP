@@ -944,6 +944,7 @@ internal static class MachineStuff
 
     internal static void SendMachineMatrix()
     {
+        if (InputHookDispatch.Active) { _ = Task.Run(SendMachineMatrix); return; }
         var sockets = Common.Sk;
         if (sockets == null) return;
         TcpSk[] targets;
@@ -962,7 +963,7 @@ internal static class MachineStuff
             bool changed = previousMachine != id;
             NewDesMachineID = Common.DesMachineID = id;
             if (changed && previousMachine != Common.MachineID)
-                _ = Task.Run(() => Common.SendPackage(previousMachine, PackageType.HideMouse));
+                Common.SendPackage(previousMachine, PackageType.HideMouse);
             if (changed) Clipboard.OnMachineSwitched();
             SwitchLocation.X = Event.XY_BY_PIXEL + primaryScreenBounds.Left + ((primaryScreenBounds.Right - primaryScreenBounds.Left) / 2);
             SwitchLocation.Y = Event.XY_BY_PIXEL + primaryScreenBounds.Top + ((primaryScreenBounds.Bottom - primaryScreenBounds.Top) / 2);

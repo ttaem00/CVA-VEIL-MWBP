@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation
+// Copyright (c) Microsoft Corporation
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -852,21 +852,9 @@ internal static class Common
 
         if (sk != null)
         {
-            if (!InputSendBudget.Enter(sk.TcpSocketsLock)) return false;
-            try
-            {
-                if (sk.TcpSockets != null)
-                {
-                    foreach (TcpSk t in sk.TcpSockets)
-                    {
-                        if (t.Status == SocketStatus.Connected && (uint)remoteMachineID == t.MachineId && t.BackingSocket != null)
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-            finally { Monitor.Exit(sk.TcpSocketsLock); }
+            foreach (TcpSk t in sk.SocketSnapshot)
+                if (t.Status == SocketStatus.Connected && (uint)remoteMachineID == t.MachineId && t.BackingSocket != null)
+                    return true;
         }
 
         return false;
@@ -886,6 +874,17 @@ internal static class Common
 
         SocketStuff sk = Sk;
 
+        if (InputHookDispatch.Active || data.Type is PackageType.HideMouse or PackageType.MachineSwitched)
+        {
+            if (sk == null || !sk.EnqueueInput(data, exceptDes))
+            {
+                if (InputHookDispatch.Active && data.Type is PackageType.Mouse or PackageType.Keyboard
+                    && data.Des != ID.ALL && data.Des == Common.DesMachineID)
+                    Event.ReturnToLocalControl(Common.LastPos);
+            }
+            return;
+        }
+
         if (sk != null)
         {
 #if DEBUG
@@ -900,18 +899,12 @@ internal static class Common
                 bool updateClientSockets = false;
 
                 TcpSk[] targets;
-                if (!InputSendBudget.Enter(sk.TcpSocketsLock))
-                {
-                    Event.ReturnToLocalControl(Common.LastPos);
-                    return;
-                }
-                try
+                lock (sk.TcpSocketsLock)
                 {
                     targets = sk.TcpSockets.Where(t => t != null && t.BackingSocket != null
                         && (t.Status == SocketStatus.Connected || (t.Status == SocketStatus.Handshaking && includeHandShakingSockets))
                         && (t.MachineId == (uint)data.Des || (data.Des == ID.ALL && t.MachineId != exceptDes && MachineStuff.InMachineMatrix(t.MachineName)))).ToArray();
                 }
-                finally { Monitor.Exit(sk.TcpSocketsLock); }
                 foreach (TcpSk t in targets)
                 {
                     try
@@ -926,17 +919,13 @@ internal static class Common
                     }
                     catch (ExpectedSocketException)
                     {
-                        if (InputSendBudget.Active) t.BackingSocket?.Dispose();
                         t.BackingSocket = null; // To be removed at CloseAnUnusedSocket()
-                        if (InputSendBudget.Active) InputSimulation.PeerDisconnected(t.MachineId);
                         updateClientSockets = true;
                     }
                     catch (Exception e)
                     {
                         Logger.Log(e);
-                        if (InputSendBudget.Active) t.BackingSocket?.Dispose();
                         t.BackingSocket = null; // To be removed at CloseAnUnusedSocket()
-                        if (InputSendBudget.Active) InputSimulation.PeerDisconnected(t.MachineId);
                         updateClientSockets = true;
                     }
                 }
@@ -945,7 +934,7 @@ internal static class Common
                 {
                     Logger.LogDebug("********** No active connection found for the remote machine! **********" + data.Des.ToString());
 
-                    if (InputSendBudget.Active || data.Des == ID.NONE || MachineStuff.RemoveDeadMachines(data.Des))
+                    if (data.Des == ID.NONE || MachineStuff.RemoveDeadMachines(data.Des))
                     {
                         // SwitchToMachine(MachineName.Trim());
                         MachineStuff.NewDesMachineID = DesMachineID = MachineID;
@@ -958,8 +947,7 @@ internal static class Common
 
                 if (updateClientSockets)
                 {
-                    if (InputSendBudget.Active) InitAndCleanup.PleaseReopenSocket = InitAndCleanup.REOPEN_WHEN_WSAECONNRESET;
-                    else MachineStuff.UpdateClientSockets("SkSend");
+                    MachineStuff.UpdateClientSockets("SkSend");
                 }
             }
             catch (Exception e)
@@ -1027,6 +1015,8 @@ internal static class Common
                     if (tobeRemoved != null)
                     {
                         _ = sk.TcpSockets.Remove(tobeRemoved);
+                        tobeRemoved.InputWriter?.Stop();
+                        sk.PublishSocketSnapshot();
                     }
                 }
             }
