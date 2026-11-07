@@ -700,6 +700,35 @@ namespace MouseWithoutBorders.Class
             return rv;
         }
 
+        // Runs off the input hook. Check ownership after acquiring each peer's
+        // frame lock, so delayed recovery cannot release a newly resumed hold.
+        internal void ReleaseInput(IReadOnlyList<DATA> releases)
+        {
+            TcpSk[] sockets;
+            lock (TcpSocketsLock) sockets = TcpSockets.ToArray();
+            var delivered = new HashSet<uint>();
+            foreach (var tcp in sockets)
+            {
+                if (tcp == null || delivered.Contains(tcp.MachineId)) continue;
+                try
+                {
+                    lock (tcp)
+                    {
+                        if (!ReferenceEquals(Common.Sk, this) || tcp.Status != SocketStatus.Connected || tcp.BackingSocket == null
+                            || Common.DesMachineID == ID.ALL || (uint)Common.DesMachineID == tcp.MachineId) continue;
+                        foreach (var release in releases)
+                        {
+                            if ((uint)release.Des != tcp.MachineId && (release.Des != ID.ALL || !MachineStuff.InMachineMatrix(tcp.MachineName))) continue;
+                            release.Id = Interlocked.Increment(ref Package.PackageID);
+                            TcpSend(tcp, release);
+                        }
+                        delivered.Add(tcp.MachineId);
+                    }
+                }
+                catch (Exception error) { Logger.Log(error); }
+            }
+        }
+
         internal void SendSharedSettings(TcpSk tcp)
         {
             lock (tcp)

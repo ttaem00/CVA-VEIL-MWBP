@@ -70,6 +70,8 @@ public sealed class FullscreenRecoveryTests
                 typeof(MouseWithoutBorders.FrmMatrix).GetMethod("OnLoad", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(owner, [EventArgs.Empty]);
                 typeof(MouseWithoutBorders.FrmMatrix).GetField("formShown", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(owner, true);
                 var controls = Descendants(owner).ToArray();
+                Assert.AreEqual("자동 저장됩니다. 긴급 복귀: Ctrl+Alt+Backspace (단축키를 꺼도 사용 가능).",
+                    controls.Single(control => control.Name == "emergencyInputHelp").Text);
                 var option = controls.OfType<CheckBox>().Single(control => control.Name == "blockFullscreenSwitching");
                 Assert.AreEqual("전체 화면 앱에서 화면 전환 차단", option.Text);
                 Assert.IsTrue(option.Checked);

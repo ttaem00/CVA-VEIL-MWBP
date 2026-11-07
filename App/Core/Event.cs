@@ -95,9 +95,35 @@ internal static class Event
             { activeMonitor = monitor.Key; break; }
     }
 
+    // Do not wait for reconnects, a UI message, or SendInput on the hook thread.
+    internal static void ReturnToLocalControl(Point nativePoint)
+    {
+        MachineStuff.NewDesMachineID = Common.DesMachineID = Common.MachineID;
+        MachineStuff.SwitchLocation.Count = 0;
+        activationPending = false;
+        Common.LastPos = nativePoint;
+        ResetMonitorPointer(nativePoint);
+    }
+
+    private static bool EnsureInputDestination(Point nativePoint, bool needsMonitor)
+    {
+        var target = Common.DesMachineID;
+        if (target == Common.MachineID || target is ID.ALL or ID.NONE) return true;
+        if (Common.IsConnectedTo(target))
+        {
+            if (!needsMonitor) return true;
+            foreach (var monitor in MonitorTopology.Monitors)
+                if (monitor.Key.Peer == (uint)target) return true;
+        }
+        ReturnToLocalControl(nativePoint);
+        Logger.Log("Input destination unavailable; restored local control.");
+        return false;
+    }
+
     internal static bool MouseEvent(MOUSEDATA e, int dx, int dy)
     {
         Common.PaintCount = 0;
+        if (!EnsureInputDestination(new Point(e.X, e.Y), true)) return false;
         var layout = MonitorTopology.Layout;
         uint peer = (uint)Common.DesMachineID;
         if (e.dwFlags == WM.WM_MOUSEMOVE && peer != (uint)Common.MachineID) activationPending = false;
@@ -287,6 +313,8 @@ internal static class Event
                 Logger.LogDebug("KeybdEvent: Switching to new machine...");
                 Common.DesMachineID = MachineStuff.newDesMachineID;
             }
+
+            if (!EnsureInputDestination(Common.LastPos, false)) return;
 
             if (MachineStuff.desMachineID != Common.MachineID)
             {
