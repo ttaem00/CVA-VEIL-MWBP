@@ -324,16 +324,11 @@ internal partial class FrmMatrix
             AddOption(mouse, checkBoxDrawMouse, "On", "Only needed when Windows cannot show a cursor. Keep this off when the Windows cursor works. This choice is saved on this PC only.");
             var cursorRecovery = SettingsButton("Use Windows cursor", (_, _) =>
             {
-                try
-                {
-                    CustomCursor.RestoreNativeCursor();
-                    checkBoxDrawMouse.Checked = false;
-                    Common.ShowToolTip(Ui.Text("Applied: Mouse Keys on; replacement off."), 4000);
-                }
-                catch (System.ComponentModel.Win32Exception error) { SettingsError(error); }
+                checkBoxDrawMouse.Checked = false;
+                Common.ShowToolTip(Ui.Text("Applied: replacement cursor off. Windows input settings unchanged."), 4000);
             });
             cursorRecovery.Name = "nativeCursorRecovery";
-            SetOptionTip(cursorRecovery, null, "Turns on Windows Mouse Keys and turns off this PC's replacement cursor. This may restore a missing cursor; it does not fix input or network delays. Mouse Keys affects the numeric keypad. To undo, turn Mouse Keys off in Windows Settings > Accessibility > Mouse.");
+            SetOptionTip(cursorRecovery, null, "Turns off this PC's replacement cursor. Windows Mouse Keys, numeric keypad settings and PC switching stay unchanged.");
             var inputRecovery = InputRecoveryButton("inputRecovery");
             mouse.Add(Actions(inputRecovery, cursorRecovery));
             AddOption(mouse, checkBoxBlockScreenSaver, "On", "Keep other PCs' screen savers from starting while you are actively using MWB.");

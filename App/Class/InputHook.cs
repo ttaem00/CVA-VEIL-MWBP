@@ -71,6 +71,10 @@ namespace MouseWithoutBorders.Class
         private int hMouseHook;
         private int hKeyboardHook;
         private byte localModifiers;
+        // Chromium's documented CRD0 tag distinguishes remote input from local
+        // accessibility/remapping injectors. The injected flag is required too.
+        private static readonly IntPtr ChromeRemoteInputTag = new(0x43524430);
+        private (System.Drawing.Point Position, System.Drawing.Point RoutingAnchor)? remotePointerBaseline;
         private bool emergencyBackspaceDown;
         private Dictionary<(ID Target, int Key), KEYBDDATA> remoteKeys;
         private HashSet<(ID Target, int Message, int Button)> remoteButtons;
@@ -125,6 +129,7 @@ namespace MouseWithoutBorders.Class
 
         internal void Start(bool showError = true)
         {
+            remotePointerBaseline = null;
             int le;
             bool er = false;
             var initialPosition = new System.Drawing.Point();
@@ -249,8 +254,16 @@ namespace MouseWithoutBorders.Class
             mouseHookStruct = LParamToMouseLLHookStruct(lParam);
             mouseHookSeenAt = Environment.TickCount64;
             Event.InputEventCount++;
+            if ((mouseHookStruct.Flags & 1) != 0 && mouseHookStruct.DwExtraInfo == ChromeRemoteInputTag)
+            {
+                if (wParam == WM.WM_MOUSEMOVE)
+                    remotePointerBaseline = (new(mouseHookStruct.Pt.x, mouseHookStruct.Pt.y), Common.LastPos);
+                return NativeMethods.CallNextHookEx(hMouseHook, nCode, wParam, lParam);
+            }
             if ((mouseHookStruct.Flags & 1) != 0 && mouseHookStruct.DwExtraInfo == InputSimulation.InjectedInputTag)
             {
+                if (wParam == WM.WM_MOUSEMOVE && remotePointerBaseline.HasValue)
+                    remotePointerBaseline = (new(mouseHookStruct.Pt.x, mouseHookStruct.Pt.y), Common.LastPos);
                 if (wParam == WM.WM_MOUSEMOVE && Common.DesMachineID == Common.MachineID)
                     Event.ResetMonitorPointer(new System.Drawing.Point(mouseHookStruct.Pt.x, mouseHookStruct.Pt.y));
                 return NativeMethods.CallNextHookEx(hMouseHook, nCode, wParam, lParam);
@@ -258,6 +271,13 @@ namespace MouseWithoutBorders.Class
             Event.RealInputEventCount++;
             try
             {
+                if (wParam == WM.WM_MOUSEMOVE && remotePointerBaseline is { } baseline)
+                {
+                    // CRD can warp the OS pointer while the physical pointer's
+                    // logical monitor stays on a peer. Do not turn that warp into dx/dy.
+                    if (Common.LastPos == baseline.RoutingAnchor) Common.LastPos = baseline.Position;
+                    remotePointerBaseline = null;
+                }
                 if (DragDrop.HandleCancelMouse(wParam)) return 1;
                 hookCallbackMouseData = new MOUSEDATA
                 {
@@ -301,6 +321,8 @@ namespace MouseWithoutBorders.Class
             byte modifier = ModifierBit(keyboardHookStruct.VkCode);
             bool up = (keyboardHookStruct.Flags & (int)WM.LLKHF.UP) != 0;
             Event.InputEventCount++;
+            if ((keyboardHookStruct.Flags & 0x10) != 0 && keyboardHookStruct.DwExtraInfo == ChromeRemoteInputTag)
+                return NativeMethods.CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
             if (RecordingKeys)
             {
                 easyMouseKeys.Update(keyboardHookStruct.VkCode, !up);
@@ -369,6 +391,7 @@ namespace MouseWithoutBorders.Class
 
         private void RestoreLocalControl()
         {
+            remotePointerBaseline = null;
             var previous = Common.DesMachineID;
             var transport = Common.Sk;
             var releases = new List<DATA>();

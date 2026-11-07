@@ -579,6 +579,56 @@ public sealed class MonitorInputIntegrationTests
         finally { poolField.SetValue(null, pool); }
     }
 
+    [TestMethod]
+    public void PhysicalReturnCrossesToLocalAfterCrdMovesAndReleasesItsOwnActivationKey()
+    {
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(1);
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.Connect(listener.LocalEndPoint!); using var accepted = listener.Accept();
+        using var wire = new MemoryStream(); using var peer = new TcpSk(false, socket, SocketStatus.Connected, "B") { MachineId = 202 };
+        typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(peer, wire);
+        var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff)); transport.TcpSocketsLock = new object();
+        typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, new List<TcpSk> { peer }); Common.Sk = transport;
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        hook.KeyboardEvent += Event.KeybdEvent; hook.MouseEvent += Event.MouseEvent;
+        var held = (HeldKeyChord)typeof(InputHook).GetField("easyMouseKeys", StaticFields)!.GetValue(null)!;
+        int[] oldHeld = held.DownKeys; var cursor = new Point(); NativeMethods.GetCursorPos(ref cursor);
+        IntPtr key = Marshal.AllocHGlobal(24), mouse = Marshal.AllocHGlobal(32);
+        try
+        {
+            held.Clear(); synthetic.KeyboardShortcutsEnabled = false;
+            synthetic.EasyMouse = (int)EasyMouseOption.Custom; synthetic.EasyMouseActivationKeys = [0x14];
+            synthetic.DisableEasyMouseWhenForegroundWindowIsFullscreen = false;
+            MachineStuff.desMachineID = MachineStuff.newDesMachineID = Common.MachineID;
+            InvokeKeyboard(hook, 0x14, false);
+            MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+            typeof(Event).GetField("activeMonitor", StaticFields)!.SetValue(null, new MonitorKey(202, "B1"));
+            typeof(Event).GetField("monitorPoint", StaticFields)!.SetValue(null, new Point(1, 100));
+            Common.LastPos = new(100, 100);
+            for (int i = 0; i < 24; i += 4) Marshal.WriteInt32(key, i, 0);
+            Marshal.WriteInt32(key, 0, 0x14); Marshal.WriteInt32(key, 8, 0x90); Marshal.WriteIntPtr(key, 16, new(0x43524430));
+            typeof(InputHook).GetMethod("KeyboardHookProc", InstanceFields)!.Invoke(hook, [0, WM.WM_KEYUP, key]);
+            for (int i = 0; i < 32; i += 4) Marshal.WriteInt32(mouse, i, 0);
+            Marshal.WriteInt32(mouse, 0, 2000); Marshal.WriteInt32(mouse, 4, 800);
+            Marshal.WriteInt32(mouse, 12, 1); Marshal.WriteIntPtr(mouse, 24, new(0x43524430));
+            var callback = typeof(InputHook).GetMethod("MouseHookProc", InstanceFields)!;
+            callback.Invoke(hook, [0, WM.WM_MOUSEMOVE, mouse]);
+            Assert.AreEqual((ID)202, Common.DesMachineID); Assert.IsTrue(InputHook.EasyMouseKeyDown);
+            Assert.AreEqual(0, wire.Length, "Remote-session movement cannot feed back to its MWBP peer.");
+            Marshal.WriteInt32(mouse, 0, 1998); Marshal.WriteInt32(mouse, 12, 0);
+            callback.Invoke(hook, [0, WM.WM_MOUSEMOVE, mouse]);
+            Assert.AreEqual(Common.MachineID, Common.DesMachineID, "The physical -2px gesture must cross the real B1→A1 boundary.");
+            Assert.AreEqual(new Point(2559, 100), Common.LastPos);
+            Assert.IsTrue(SpinWait.SpinUntil(() => wire.Length >= 32, TimeSpan.FromSeconds(2)), "The old peer cleanup must finish before fixture disposal.");
+        }
+        finally
+        {
+            held.Clear(); foreach (int value in oldHeld) held.Update(value, true);
+            NativeMethods.SetCursorPos(cursor.X, cursor.Y); Marshal.FreeHGlobal(key); Marshal.FreeHGlobal(mouse);
+        }
+    }
+
     [DataTestMethod]
     [DataRow(false)]
     [DataRow(true)]
@@ -738,13 +788,19 @@ public sealed class MonitorInputIntegrationTests
             {
             _ = form.Handle;
             InputHook? hook = null;
+            bool chordInjectionStarted = false;
             form.BeginInvoke((Action)(async () =>
             {
                 try
                 {
                     hook = new InputHook(); Common.Hook = hook; Common.InputCallbackForm = form;
                     Assert.IsTrue(InputHook.ObserveDevices(form.Handle));
-                    if (!automatic) Assert.IsTrue(form.RegisterRecoveryHotkey(), "The Windows emergency hotkey must register independently of the LL hook.");
+                    if (!automatic && !form.RegisterRecoveryHotkey())
+                    {
+                        int error = Marshal.GetLastWin32Error();
+                        if (error == 1409) Assert.Inconclusive("The running installed MWBP or another app already owns this Windows chord; do not steal it or interrupt the user's session.");
+                        Assert.Fail($"Windows emergency hotkey registration failed: {error}.");
+                    }
                     int calls = 0;
                     hook.MouseEvent += (_, _, _) => { if (kind == 0) calls++; return false; };
                     hook.KeyboardEvent += _ => { if (kind == 1) calls++; };
@@ -790,6 +846,7 @@ public sealed class MonitorInputIntegrationTests
                         // Exercise Windows' real registered shortcut with the LL hook removed.
                         var chord = new[] { 0xa2, 0xa4, 8 }.Select(key => new NativeMethods.INPUT64
                         { type = 1, ki = new() { wVk = (short)key, dwExtraInfo = new IntPtr(0x1234) } }).ToArray();
+                        chordInjectionStarted = true;
                         Assert.AreEqual(3u, await Task.Run(() => NativeMethods.SendInput64(3, chord, Marshal.SizeOf<NativeMethods.INPUT64>())));
                     }
                     for (int i = 0; i < 60 && hook.HasMissedPhysicalInput(Environment.TickCount64); i++)
@@ -811,7 +868,7 @@ public sealed class MonitorInputIntegrationTests
                 catch (Exception error) { failure = error; }
                 finally
                 {
-                    if (!automatic)
+                    if (chordInjectionStarted)
                     {
                         var releases = new[] { 8, 0xa4, 0xa2 }.Select(key => new NativeMethods.INPUT64
                         { type = 1, ki = new() { wVk = (short)key, dwFlags = (int)NativeMethods.KEYEVENTF.KEYUP, dwExtraInfo = InputSimulation.InjectedInputTag } }).ToArray();

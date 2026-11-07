@@ -65,17 +65,6 @@ namespace MouseWithoutBorders.Class
             return c;
         }
 
-        internal static void RestoreNativeCursor()
-        {
-            var keys = new NativeMethods.MOUSEKEYS { cbSize = (uint)Marshal.SizeOf<NativeMethods.MOUSEKEYS>() };
-            if (!NativeMethods.SystemParametersInfoMouseKeys(0x36, keys.cbSize, ref keys, 0))
-                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
-            keys.dwFlags |= 1; // MKF_MOUSEKEYSON; preserve the user's speed and Num Lock preferences.
-            keys.dwReserved1 = keys.dwReserved2 = 0;
-            if (!NativeMethods.SystemParametersInfoMouseKeys(0x37, keys.cbSize, ref keys, 3)) // UPDATEINIFILE | SENDCHANGE
-                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
-        }
-
         internal static void ShowFakeMouseCursor(int x, int y)
         {
             if (x != int.MinValue && y != int.MinValue && !Setting.Values.DrawMouse) return;

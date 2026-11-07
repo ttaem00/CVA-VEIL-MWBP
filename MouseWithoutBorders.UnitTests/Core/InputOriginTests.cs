@@ -12,6 +12,92 @@ namespace MouseWithoutBorders.UnitTests.Core;
 public sealed class InputOriginTests
 {
     [TestMethod]
+    public void ChromeRemoteInputStaysLocalWithoutChangingPhysicalKeyOrMouseRouting()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        var held = (HeldKeyChord)typeof(InputHook).GetField("easyMouseKeys", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        int[] original = held.DownKeys;
+        var oldPoint = Common.LastPos; var oldDestination = MachineStuff.desMachineID; var oldNext = MachineStuff.newDesMachineID;
+        bool oldRecording = InputHook.RecordingKeys; var oldRecorder = InputHook.KeyRecorder;
+        ulong oldCount = Event.RealInputEventCount;
+        int keys = 0, mice = 0, recorded = 0;
+        hook.KeyboardEvent += _ => keys++;
+        hook.MouseEvent += (_, _, _) => { mice++; return true; };
+        IntPtr keyboard = Marshal.AllocHGlobal(24), mouse = Marshal.AllocHGlobal(32);
+        try
+        {
+            held.Clear(); held.Update(0x14, true); // The physical activation key is already held.
+            MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+            Common.LastPos = new(100, 100);
+            for (int i = 0; i < 24; i += 4) Marshal.WriteInt32(keyboard, i, 0);
+            for (int i = 0; i < 32; i += 4) Marshal.WriteInt32(mouse, i, 0);
+            Marshal.WriteInt32(keyboard, 0, 0x14); Marshal.WriteInt32(keyboard, 8, 0x90);
+            Marshal.WriteIntPtr(keyboard, 16, new IntPtr(0x43524430)); // Official Chromium CRD0 source tag.
+            var keyCallback = typeof(InputHook).GetMethod("KeyboardHookProc", flags)!;
+            Assert.AreEqual(0, keyCallback.Invoke(hook, [0, WM.WM_KEYUP, keyboard]), "Remote key-up must reach GAME rather than being swallowed/forwarded.");
+            CollectionAssert.AreEqual(new[] { 0x14 }, held.DownKeys, "Remote key-up cannot release the physical activation chord.");
+            InputHook.RecordingKeys = true; InputHook.KeyRecorder = (_, _) => recorded++;
+            keyCallback.Invoke(hook, [0, WM.WM_KEYDOWN, keyboard]);
+            Assert.AreEqual(0, recorded, "Remote input cannot pollute physical shortcut recording.");
+            InputHook.RecordingKeys = false;
+            Marshal.WriteInt32(mouse, 0, 2000); Marshal.WriteInt32(mouse, 4, 800);
+            Marshal.WriteInt32(mouse, 12, 1); Marshal.WriteIntPtr(mouse, 24, new IntPtr(0x43524430));
+            var mouseCallback = typeof(InputHook).GetMethod("MouseHookProc", flags)!;
+            foreach (int message in new[] { WM.WM_MOUSEMOVE, WM.WM_LBUTTONDOWN, WM.WM_LBUTTONUP, WM.WM_MOUSEWHEEL })
+                Assert.AreEqual(0, mouseCallback.Invoke(hook, [0, message, mouse]), "Remote input must stay on its remote desktop.");
+            Assert.AreEqual(0, keys); Assert.AreEqual(0, mice); Assert.AreEqual(oldCount, Event.RealInputEventCount);
+            Assert.AreEqual((ID)202, Common.DesMachineID); Assert.AreEqual(new System.Drawing.Point(100, 100), Common.LastPos);
+            int dx = 0, dy = 0;
+            hook.MouseEvent += (_, x, y) => { dx = x; dy = y; return true; };
+            Marshal.WriteInt32(mouse, 0, 1998); Marshal.WriteInt32(mouse, 4, 801); Marshal.WriteInt32(mouse, 12, 0);
+            mouseCallback.Invoke(hook, [0, WM.WM_MOUSEMOVE, mouse]);
+            Assert.AreEqual(-2, dx); Assert.AreEqual(1, dy, "Remote cursor travel must not become physical mouse delta.");
+        }
+        finally
+        {
+            held.Clear(); foreach (int key in original) held.Update(key, true);
+            Common.LastPos = oldPoint; MachineStuff.desMachineID = oldDestination; MachineStuff.newDesMachineID = oldNext;
+            InputHook.RecordingKeys = oldRecording; InputHook.KeyRecorder = oldRecorder; Event.RealInputEventCount = oldCount;
+            Marshal.FreeHGlobal(keyboard); Marshal.FreeHGlobal(mouse);
+        }
+    }
+
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void NewerMwbWarpSupersedesTheRemoteCursorBaseline(bool callbackObserved)
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        var old = Common.LastPos; ulong oldReal = Event.RealInputEventCount, oldTotal = Event.InputEventCount;
+        IntPtr payload = Marshal.AllocHGlobal(32); int dx = 0, dy = 0;
+        hook.MouseEvent += (_, x, y) => { dx = x; dy = y; return true; };
+        var callback = typeof(InputHook).GetMethod("MouseHookProc", flags)!;
+        try
+        {
+            for (int i = 0; i < 32; i += 4) Marshal.WriteInt32(payload, i, 0);
+            void Move(int x, int y, bool injected, IntPtr tag)
+            {
+                Marshal.WriteInt32(payload, 0, x); Marshal.WriteInt32(payload, 4, y);
+                Marshal.WriteInt32(payload, 12, injected ? 1 : 0); Marshal.WriteIntPtr(payload, 24, tag);
+                callback.Invoke(hook, [0, WM.WM_MOUSEMOVE, payload]);
+            }
+            Common.LastPos = new(100, 100);
+            Move(2000, 800, true, new(0x43524430));
+            if (callbackObserved) Move(500, 600, true, InputSimulation.InjectedInputTag);
+            else Common.LastPos = new(500, 600); // HideMouseCursor updates its anchor before SetCursorPos.
+            Move(502, 600, false, IntPtr.Zero);
+            Assert.AreEqual(2, dx); Assert.AreEqual(0, dy);
+            // Coincident marker bits alone must never classify physical movement as remote.
+            int before = dx;
+            Move(510, 600, false, new(0x43524430));
+            Assert.AreNotEqual(before, dx);
+        }
+        finally { Common.LastPos = old; Event.RealInputEventCount = oldReal; Event.InputEventCount = oldTotal; Marshal.FreeHGlobal(payload); }
+    }
+
+    [TestMethod]
     public void LocalOleDragIsCancelledBeforeReleasingTheNativeButton()
     {
         var inputs = InputSimulation.OleDragCancelInputs();
@@ -100,7 +186,7 @@ public sealed class InputOriginTests
             Assert.AreEqual(0, delivered, "The app's own injected key must reach Windows without entering its network path again.");
             Marshal.WriteIntPtr(payload, 16, new IntPtr(0x1234));
             callback.Invoke(hook, [0, WM.WM_KEYUP, payload]);
-            Assert.AreEqual(1, delivered, "Another injector such as CRD remains a valid input source.");
+            Assert.AreEqual(1, delivered, "An unmarked local remapper or assistive injector remains a valid input source.");
             Marshal.WriteInt32(payload, 8, 0x80); // physical key up with coincident extra info
             Marshal.WriteIntPtr(payload, 16, new IntPtr(0x4D574250));
             callback.Invoke(hook, [0, WM.WM_KEYUP, payload]);
