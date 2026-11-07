@@ -483,7 +483,7 @@ namespace MouseWithoutBorders.Class
             try
             {
                 skMessageServer = new TcpServer(TcpPort + 1, new ParameterizedThreadStart(TCPServerThread));
-                skClipboardServer = new TcpServer(TcpPort, new ParameterizedThreadStart(AcceptConnectionAndSendClipboardData));
+                if (!LogonSession.Active) skClipboardServer = new TcpServer(TcpPort, new ParameterizedThreadStart(AcceptConnectionAndSendClipboardData));
             }
             catch (SocketException e)
             {
@@ -505,6 +505,7 @@ namespace MouseWithoutBorders.Class
             try
             {
                 var socket = tcp.BackingSocket;
+                InputSendBudget.CheckBeforeWrite(socket);
                 Stream encryptedStream = tcp.EncryptedStream;
                 if (socket == null || !socket.Connected || encryptedStream == null)
                 {
@@ -521,7 +522,7 @@ namespace MouseWithoutBorders.Class
                     bytes[1] = (byte)(bytes[1] + bytes[i]);
                 }
 
-                encryptedStream.Write(bytes, 0, bytes.Length);
+                InputSendBudget.Write(encryptedStream, socket, bytes);
             }
             catch (Exception e) when (e is IOException or SocketException or ObjectDisposedException)
             {
@@ -682,7 +683,12 @@ namespace MouseWithoutBorders.Class
 
             byte[] dataAsBytes = data.Bytes;
             int rv;
-            lock (tcp)
+            if (!InputSendBudget.Enter(tcp))
+            {
+                tcp.BackingSocket?.Dispose();
+                throw new ExpectedSocketException("Input callback could not acquire the peer frame lock; retired its connection.");
+            }
+            try
             {
                 // A queued hide may arrive after this recipient has become active again.
                 if (data.Type == PackageType.HideMouse &&
@@ -690,6 +696,7 @@ namespace MouseWithoutBorders.Class
                     return dataAsBytes.Length;
                 rv = TcpSendDataLocked(tcp, dataAsBytes);
             }
+            finally { Monitor.Exit(tcp); }
             if (rv < dataAsBytes.Length)
             {
                 Logger.Log("TcpSend error! Length of sent data is unexpected.");
@@ -1358,7 +1365,7 @@ namespace MouseWithoutBorders.Class
                 currentSocket.SendBufferSize = Package.PACKAGE_SIZE * 10000;
                 currentSocket.ReceiveBufferSize = Package.PACKAGE_SIZE * 10000;
                 currentSocket.NoDelay = true; // This is very interesting to know:(
-                currentSocket.SendTimeout = 500;
+                currentSocket.SendTimeout = 100; // Input transport must not outlive a low-level hook callback.
                 d.MachineName = Common.MachineName;
 
                 d.Type = PackageType.Handshake;
@@ -2047,6 +2054,7 @@ namespace MouseWithoutBorders.Class
                                 && t.Status == SocketStatus.Connected && t.BackingSocket != null))
                         {
                             DragDrop.PeerDisconnected(this, (ID)tcp.MachineId);
+                            InputSimulation.PeerDisconnected(tcp.MachineId);
                         }
                     }
                 }

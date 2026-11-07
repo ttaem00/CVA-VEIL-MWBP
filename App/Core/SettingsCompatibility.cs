@@ -421,6 +421,7 @@ namespace Microsoft.PowerToys.Settings.UI.Library
 
         public void SaveSettings(string json, string moduleName)
         {
+            if (MouseWithoutBorders.Core.LogonSession.Active) return;
             MouseWithoutBorders.Core.PortableSettingsStore.Write(PathForModule(moduleName), json);
         }
 

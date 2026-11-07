@@ -15,6 +15,22 @@ namespace MouseWithoutBorders.UnitTests.Core;
 [DoNotParallelize]
 public sealed class PrivilegedInputTests
 {
+    private Dictionary<long, NativeMethods.INPUT64> originalDebt = null!;
+    private object? originalNeedsDrain, originalRecovering;
+    private static Dictionary<long, NativeMethods.INPUT64> ClientDebt => (Dictionary<long, NativeMethods.INPUT64>)Field("clientHeldInput").GetValue(null)!;
+    [TestInitialize]
+    public void SaveDebt()
+    {
+        originalDebt = new(ClientDebt); ClientDebt.Clear();
+        originalNeedsDrain = Field("clientNeedsDrain").GetValue(null); originalRecovering = Field("recoveringInput").GetValue(null);
+        Field("clientNeedsDrain").SetValue(null, false); Field("recoveringInput").SetValue(null, false);
+    }
+    [TestCleanup]
+    public void RestoreDebt()
+    {
+        ClientDebt.Clear(); foreach (var entry in originalDebt) ClientDebt.Add(entry.Key, entry.Value);
+        Field("clientNeedsDrain").SetValue(null, originalNeedsDrain); Field("recoveringInput").SetValue(null, originalRecovering);
+    }
     private static readonly BindingFlags Private = BindingFlags.Static | BindingFlags.NonPublic;
     private static FieldInfo Field(string name) => typeof(PrivilegedInput).GetField(name, Private)!;
     private static uint Exchange(NativeMethods.INPUT64 input) => (uint)typeof(PrivilegedInput).GetMethod("ExchangeInput", Private)!.Invoke(null, [input])!;
@@ -208,6 +224,146 @@ public sealed class PrivilegedInputTests
         {
             Field("inputPipe").SetValue(null, oldPipe); Field("inputAgent").SetValue(null, oldAgent); Field("brokerOwnsInput").SetValue(null, oldOwns);
         }
+    }
+
+    [TestMethod]
+    public async Task LostMoveReplyDoesNotCreateAKeyboardOrButtonOwner()
+    {
+        object? oldPipe = Field("inputPipe").GetValue(null), oldOwns = Field("brokerOwnsInput").GetValue(null);
+        string pipeName = "mwb-move-debt-" + Guid.NewGuid().ToString("N");
+        using var endpoint = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        var connected = endpoint.WaitForConnectionAsync(); await client.ConnectAsync(1000); await connected;
+        try
+        {
+            Field("inputPipe").SetValue(null, client); Field("brokerOwnsInput").SetValue(null, false);
+            NativeMethods.INPUT64 move = default; move.mi.dwFlags = (int)NativeMethods.MOUSEEVENTF.MOVE;
+            Assert.ThrowsException<TargetInvocationException>(() => Exchange(move));
+            Assert.IsFalse(PrivilegedInput.HasHeldInput, "A timed-out movement cannot leave ordinary keys permanently behind a fictitious held-input owner.");
+            Assert.AreEqual(0, ClientDebt.Count);
+        }
+        finally { Field("inputPipe").SetValue(null, oldPipe); Field("brokerOwnsInput").SetValue(null, oldOwns); }
+    }
+
+    [DataTestMethod]
+    [DataRow(0, 0)] [DataRow(2, 0)] [DataRow(8, 0)] [DataRow(32, 0)] [DataRow(128, 1)] [DataRow(128, 2)]
+    public async Task AnAppliedDownWithALostReplyIsReleasedThroughTheReplacementWorker(int mouseFlag, int mouseData)
+    {
+        object? oldPipe = Field("inputPipe").GetValue(null), oldOwns = Field("brokerOwnsInput").GetValue(null), oldAgent = Field("inputAgent").GetValue(null);
+        string name = "mwb-debt-" + Guid.NewGuid().ToString("N");
+        using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
+        var connected = server.WaitForConnectionAsync(); await client.ConnectAsync(1000); await connected;
+        var applied = new List<NativeMethods.INPUT64>();
+        var firstWorker = Task.Run(async () => { var bytes = new byte[Marshal.SizeOf<NativeMethods.INPUT64>()]; await server.ReadExactlyAsync(bytes); applied.Add(MemoryMarshal.Read<NativeMethods.INPUT64>(bytes)); });
+        try
+        {
+            Field("inputPipe").SetValue(null, client); Field("brokerOwnsInput").SetValue(null, false);
+            NativeMethods.INPUT64 down = default; down.type = 1; down.ki.wVk = 0x11; down.ki.wScan = 29; down.ki.dwFlags = (int)NativeMethods.KEYEVENTF.EXTENDEDKEY;
+            if (mouseFlag != 0) { down = default; down.mi.dwFlags = mouseFlag; down.mi.mouseData = mouseData; }
+            Assert.ThrowsException<TargetInvocationException>(() => Exchange(down)); await firstWorker;
+            Assert.AreEqual(1, applied.Count); Assert.AreEqual(1, ClientDebt.Count);
+            using var exited = new EventWaitHandle(true, EventResetMode.ManualReset);
+            using var handle = new SafeProcessHandle(exited.SafeWaitHandle.DangerousGetHandle(), false);
+            Field("inputAgent").SetValue(null, handle);
+            typeof(PrivilegedInput).GetMethod("DiscardExitedAgent", Private)!.Invoke(null, null);
+            Assert.IsTrue(PrivilegedInput.HasHeldInput, "The worker's death must not forgive its applied DOWN.");
+            string replacementName = "mwb-replacement-" + Guid.NewGuid().ToString("N");
+            using var replacement = new NamedPipeServerStream(replacementName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+            using var next = new NamedPipeClientStream(".", replacementName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            var ready = replacement.WaitForConnectionAsync(); await next.ConnectAsync(1000); await ready;
+            Field("inputPipe").SetValue(null, next);
+            var worker = Task.Run(async () =>
+            {
+                var bytes = new byte[Marshal.SizeOf<NativeMethods.INPUT64>()]; await replacement.ReadExactlyAsync(bytes);
+                var release = MemoryMarshal.Read<NativeMethods.INPUT64>(bytes);
+                Assert.AreEqual(down.type, release.type);
+                if (down.type == 1)
+                {
+                    Assert.AreEqual(down.ki.wVk, release.ki.wVk); Assert.AreEqual(down.ki.wScan, release.ki.wScan);
+                    Assert.AreEqual((int)(NativeMethods.KEYEVENTF.KEYUP | NativeMethods.KEYEVENTF.EXTENDEDKEY), release.ki.dwFlags);
+                }
+                else { Assert.AreEqual(mouseFlag == 128 ? 256 : mouseFlag * 2, release.mi.dwFlags); Assert.AreEqual(mouseData, release.mi.mouseData); }
+                await replacement.WriteAsync(new byte[] { 1, 0, 0, 0 });
+            });
+            Assert.IsTrue((bool)typeof(PrivilegedInput).GetMethod("DrainClientHeldInput", Private)!.Invoke(null, null)!);
+            await worker; Assert.AreEqual(0, ClientDebt.Count); Assert.IsFalse(PrivilegedInput.HasHeldInput);
+        }
+        finally { Field("inputPipe").SetValue(null, oldPipe); Field("brokerOwnsInput").SetValue(null, oldOwns); Field("inputAgent").SetValue(null, oldAgent); }
+    }
+
+    [TestMethod]
+    public async Task AnExplicitlyRejectedDownDoesNotCreateReleaseDebt()
+    {
+        object? oldPipe = Field("inputPipe").GetValue(null), oldOwns = Field("brokerOwnsInput").GetValue(null);
+        string name = "mwb-rejected-down-" + Guid.NewGuid().ToString("N");
+        using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
+        var connected = server.WaitForConnectionAsync(); await client.ConnectAsync(1000); await connected;
+        var worker = Task.Run(async () => { await server.ReadExactlyAsync(new byte[Marshal.SizeOf<NativeMethods.INPUT64>()]); await server.WriteAsync(new byte[4]); });
+        try
+        {
+            Field("inputPipe").SetValue(null, client); Field("brokerOwnsInput").SetValue(null, false);
+            NativeMethods.INPUT64 down = default; down.type = 1; down.ki.wVk = 0x57;
+            Assert.AreEqual(0u, Exchange(down)); await worker;
+            Assert.AreEqual(0, ClientDebt.Count); Assert.IsFalse(PrivilegedInput.HasHeldInput);
+        }
+        finally { Field("inputPipe").SetValue(null, oldPipe); Field("brokerOwnsInput").SetValue(null, oldOwns); }
+    }
+
+    [TestMethod]
+    public async Task APartiallyRejectedCleanupIsRetriedBeforeFreshInputOnTheSamePipe()
+    {
+        object? oldPipe = Field("inputPipe").GetValue(null), oldOwns = Field("brokerOwnsInput").GetValue(null);
+        string name = "mwb-partial-drain-" + Guid.NewGuid().ToString("N");
+        using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
+        var connected = server.WaitForConnectionAsync(); await client.ConnectAsync(1000); await connected;
+        var seen = new List<int>();
+        var worker = Task.Run(async () =>
+        {
+            foreach (byte count in new byte[] { 1, 0, 1 })
+            {
+                var bytes = new byte[Marshal.SizeOf<NativeMethods.INPUT64>()]; await server.ReadExactlyAsync(bytes);
+                var release = MemoryMarshal.Read<NativeMethods.INPUT64>(bytes); seen.Add(release.ki.wVk);
+                Assert.AreNotEqual(0, release.ki.dwFlags & (int)NativeMethods.KEYEVENTF.KEYUP);
+                await server.WriteAsync(new byte[] { count, 0, 0, 0 });
+            }
+        });
+        try
+        {
+            Field("inputPipe").SetValue(null, client); Field("brokerOwnsInput").SetValue(null, true); Field("clientNeedsDrain").SetValue(null, true);
+            foreach (short key in new short[] { 0x57, 0x11 })
+            {
+                NativeMethods.INPUT64 down = default; down.type = 1; down.ki.wVk = key;
+                typeof(PrivilegedInput).GetMethod("TrackHeldInput", Private)!.Invoke(null, [ClientDebt, down]);
+            }
+            var drain = typeof(PrivilegedInput).GetMethod("DrainReconnectedInput", Private)!;
+            Assert.IsFalse((bool)drain.Invoke(null, null)!); Assert.AreEqual(1, ClientDebt.Count);
+            Assert.IsTrue((bool)Field("clientNeedsDrain").GetValue(null)!); Assert.IsTrue(PrivilegedInput.HasHeldInput);
+            Assert.IsTrue((bool)drain.Invoke(null, null)!); await worker;
+            CollectionAssert.AreEqual(new[] { 0x57, 0x11, 0x11 }, seen);
+            Assert.AreEqual(0, ClientDebt.Count); Assert.IsFalse((bool)Field("clientNeedsDrain").GetValue(null)!);
+        }
+        finally { Field("inputPipe").SetValue(null, oldPipe); Field("brokerOwnsInput").SetValue(null, oldOwns); }
+    }
+
+    [TestMethod]
+    public async Task ABlockedInjectionExpiresAndAnOldDeadlineCannotKillTheNextOperation()
+    {
+        using var blocked = new ManualResetEventSlim(); using var release = new ManualResetEventSlim(); using var expired = new ManualResetEventSlim();
+        var guard = new PrivilegedInput.InjectionDeadline(TimeSpan.FromMilliseconds(100), () => expired.Set());
+        var stalled = Task.Run(() => Assert.ThrowsException<System.TimeoutException>(() => guard.Run(() => { blocked.Set(); release.Wait(); return 1u; })));
+        try { Assert.IsTrue(blocked.Wait(1000)); Assert.IsTrue(expired.Wait(2000)); }
+        finally { release.Set(); await stalled.WaitAsync(TimeSpan.FromSeconds(3)); }
+        Assert.ThrowsException<System.TimeoutException>(() => guard.Run(() => 1));
+
+        int terminations = 0;
+        var healthy = new PrivilegedInput.InjectionDeadline(TimeSpan.FromSeconds(2), () => Interlocked.Increment(ref terminations));
+        object? completed = null;
+        Assert.AreEqual(1u, healthy.Run(() => { completed = typeof(PrivilegedInput.InjectionDeadline).GetField("active", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(healthy); return 1; }));
+        Assert.AreEqual(1u, healthy.Run(() => { typeof(PrivilegedInput.InjectionDeadline).GetMethod("Expire", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(healthy, [completed]); return 1; }));
+        Assert.AreEqual(0, terminations, "A late timer for a completed request must not retire a healthy worker.");
     }
 
     [TestMethod]

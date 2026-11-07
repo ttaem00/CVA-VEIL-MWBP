@@ -134,6 +134,7 @@ internal static class InitAndCleanup
             Logger.TelemetryLogTrace($"{nameof(SystemEvents_PowerModeChanged)}: {e.Mode}", SeverityLevel.Information);
             try
             {
+                if (LogonSession.Active) return;
                 if (e.Mode == PowerModes.Suspend) DurableTransfers.Stop();
                 else { DurableTransfers.ResumeService(); if (DurableTransfers.Jobs.Any(j => !j.Terminal)) TransferCenter.ShowCenter(); }
             }

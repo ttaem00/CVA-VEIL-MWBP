@@ -26,12 +26,15 @@ public sealed class MonitorInputIntegrationTests
     private string originalName = null!;
     private int originalPaintCount;
     private int originalSwitchCount;
+    private System.Diagnostics.Process originalProcess = null!, ownedProcess = null!;
     private string folder = null!;
 
     [TestInitialize]
     public void Setup()
     {
         originalSettings = Setting.Values; originalTransport = Common.Sk;
+        originalProcess = Common.CurrentProcess;
+        Common.CurrentProcess = ownedProcess = System.Diagnostics.Process.GetCurrentProcess();
         originalDestination = MachineStuff.desMachineID; originalNewDestination = MachineStuff.newDesMachineID;
         originalPosition = Common.LastPos; originalPaintCount = Common.PaintCount;
         originalSwitchCount = MachineStuff.SwitchLocation.Count;
@@ -69,6 +72,7 @@ public sealed class MonitorInputIntegrationTests
         finally
         {
             Setting.Values = originalSettings; Common.Sk = originalTransport;
+            Common.CurrentProcess = originalProcess; ownedProcess.Dispose();
             MachineStuff.desMachineID = originalDestination; MachineStuff.newDesMachineID = originalNewDestination;
             Common.LastPos = originalPosition; Common.PaintCount = originalPaintCount;
             MachineStuff.SwitchLocation.Count = originalSwitchCount;
@@ -575,17 +579,297 @@ public sealed class MonitorInputIntegrationTests
         finally { poolField.SetValue(null, pool); }
     }
 
-    private static int InvokeKeyboard(InputHook hook, int key, bool up, bool ownInjected = false, bool extended = false)
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ARemoteFrameLockCannotStrandTheKeyboardHook(bool inventoryLock)
+    {
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(1);
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.Connect(listener.LocalEndPoint!); using var accepted = listener.Accept();
+        using var peer = new TcpSk(false, socket, SocketStatus.Connected, "B") { MachineId = 202 };
+        var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff)); transport.TcpSocketsLock = new object();
+        typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, new List<TcpSk> { peer }); Common.Sk = transport;
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        synthetic.KeyboardShortcutsEnabled = false; hook.KeyboardEvent += Event.KeybdEvent;
+        MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+        using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
+        var holder = Task.Run(() => { lock (inventoryLock ? transport.TcpSocketsLock : peer) { entered.Set(); release.Wait(); } });
+        Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(3)));
+        Task<int>? callback = null;
+        try
+        {
+            callback = Task.Run(() => InvokeKeyboard(hook, 0x87, true));
+            Assert.IsTrue(await Task.WhenAny(callback, Task.Delay(400)) == callback,
+                "A stalled peer frame or inventory owner must not hold the real hook entrypoint until Windows removes it.");
+            Assert.AreEqual(0, await callback, "Failed remote delivery must return control to the local keyboard.");
+            Assert.AreEqual(Common.MachineID, Common.DesMachineID);
+        }
+        finally { release.Set(); await holder; if (callback != null) await callback; }
+    }
+
+    [TestMethod]
+    public async Task BroadcastAndRepeatedFramesShareOneHookBudgetEvenWithDuplicateConnections()
+    {
+        var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff)); transport.TcpSocketsLock = new object();
+        var peers = new List<TcpSk>(); var sockets = new List<Socket>(); var holders = new List<Task>();
+        using var release = new ManualResetEventSlim(); using var entered = new CountdownEvent(8);
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(8);
+        try
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                socket.Connect(listener.LocalEndPoint!); sockets.Add(socket); sockets.Add(listener.Accept());
+                var peer = new TcpSk(i % 2 == 0, socket, SocketStatus.Connected, "B") { MachineId = 202 }; peers.Add(peer);
+                holders.Add(Task.Factory.StartNew(() => { lock (peer) { entered.Signal(); release.Wait(); } }, TaskCreationOptions.LongRunning));
+            }
+            Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(3)));
+            typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, peers); Common.Sk = transport;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            using (new InputSendBudget(true))
+            {
+                Common.SkSend(new DATA { Type = PackageType.Keyboard, Des = ID.ALL, Kd = new() { wVk = 0x87 } }, null, false);
+                Common.SkSend(new DATA { Type = PackageType.Keyboard, Des = ID.ALL, Kd = new() { wVk = 0x87, dwFlags = (int)WM.LLKHF.UP } }, null, false);
+            }
+            Assert.IsTrue(watch.Elapsed < TimeSpan.FromMilliseconds(400), "Broadcast duplicates and a second frame must not restart the 150ms hook budget.");
+        }
+        finally { release.Set(); await Task.WhenAll(holders); foreach (var socket in sockets) socket.Dispose(); foreach (var peer in peers) peer.Dispose(); }
+    }
+
+    [TestMethod]
+    public void AWriteThatIgnoresCancellationCannotHoldTheHookOrReuseItsPartialStream()
+    {
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        using var release = new ManualResetEventSlim();
+        using var wire = new UnresponsiveWriteStream(release);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            using var budget = new InputSendBudget(true);
+            Assert.ThrowsException<MouseWithoutBorders.Exceptions.ExpectedSocketException>(() => InputSendBudget.Write(wire, socket, new byte[32]));
+            Assert.IsTrue(watch.Elapsed < TimeSpan.FromMilliseconds(400));
+            Assert.IsTrue(socket.SafeHandle.IsClosed, "An incomplete encrypted frame must retire the socket before returning.");
+        }
+        finally { release.Set(); }
+    }
+
+    private sealed class UnresponsiveWriteStream(ManualResetEventSlim release) : MemoryStream
+    {
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+            => new(Task.Run(() => release.Wait()));
+    }
+
+    [TestMethod]
+    public async Task AFailedRemoteUpReleasesAppliedHoldsAndDiscardedFramesCannotTakeOwnership()
+    {
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(1);
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.Connect(listener.LocalEndPoint!); using var accepted = listener.Accept();
+        using var peer = new TcpSk(false, socket, SocketStatus.Connected, "B") { MachineId = 202 };
+        using var other = new TcpSk(true, socket, SocketStatus.Connected, "B") { MachineId = 202 };
+        using var release = new ManualResetEventSlim(); using var wire = new UnresponsiveWriteStream(release);
+        typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(peer, wire);
+        var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff)); transport.TcpSocketsLock = new object();
+        typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, new List<TcpSk> { peer }); Common.Sk = transport;
+        var packet = new DATA { Type = PackageType.Keyboard, Src = (ID)202, Des = Common.MachineID, Id = 1900031, Kd = new() { wVk = 0x87 } };
+        var ledger = (System.Collections.IDictionary)typeof(InputSimulation).GetField("remoteHolds", StaticFields)!.GetValue(null)!;
+        object? original = ledger[202u];
+        ledger.Remove(202u);
+        try
+        {
+            Receiver.ProcessPackage(packet, peer);
+            Assert.IsTrue((NativeMethods.GetAsyncKeyState((IntPtr)0x87) & 0x8000) != 0, "A real native DOWN must first be applied.");
+            var state = ledger[202u]!; var owner = state.GetType().GetField("Owner", InstanceFields)!;
+            Receiver.ProcessPackage(packet, other); // Same processed ID, another connection.
+            Assert.AreSame(peer, owner.GetValue(state), "Duplicate input must not advance ownership.");
+            Receiver.ProcessPackage(new DATA { Type = PackageType.Keyboard, Src = (ID)202, Des = (ID)303, Id = 1900032, Kd = new() { wVk = 0x87 } }, other);
+            Assert.AreSame(peer, owner.GetValue(state), "Input for another destination must not advance ownership.");
+            var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+            synthetic.KeyboardShortcutsEnabled = false; hook.KeyboardEvent += Event.KeybdEvent;
+            MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+            Assert.AreEqual(0, InvokeKeyboard(hook, 0x87, true), "The timed-out actual hook must return to local control.");
+            for (int i = 0; i < 60 && (NativeMethods.GetAsyncKeyState((IntPtr)0x87) & 0x8000) != 0; i++) await Task.Delay(25);
+            Assert.IsFalse((NativeMethods.GetAsyncKeyState((IntPtr)0x87) & 0x8000) != 0,
+                "The actual failed transport path must release its previously applied remote DOWN.");
+        }
+        finally
+        {
+            release.Set();
+            InputSimulation.SendKey(new() { wVk = 0x87, dwFlags = (int)WM.LLKHF.UP });
+            ledger.Remove(202u); if (original != null) ledger[202u] = original;
+        }
+    }
+
+    private static int InvokeKeyboard(InputHook hook, int key, bool up, bool ownInjected = false, bool extended = false, bool foreignInjected = false)
     {
         IntPtr payload = Marshal.AllocHGlobal(24);
         try
         {
             for (int offset = 0; offset < 24; offset += 4) Marshal.WriteInt32(payload, offset, 0);
-            Marshal.WriteInt32(payload, 0, key); Marshal.WriteInt32(payload, 8, (up ? 0x80 : 0) | (ownInjected ? 0x10 : 0) | (extended ? 1 : 0));
+            Marshal.WriteInt32(payload, 0, key); Marshal.WriteInt32(payload, 8, (up ? 0x80 : 0) | (ownInjected || foreignInjected ? 0x10 : 0) | (extended ? 1 : 0));
             if (ownInjected) Marshal.WriteIntPtr(payload, 16, InputSimulation.InjectedInputTag);
+            else if (foreignInjected) Marshal.WriteIntPtr(payload, 16, new IntPtr(0x1234));
             return (int)typeof(InputHook).GetMethod("KeyboardHookProc", InstanceFields)!.Invoke(hook, [0, up ? WM.WM_KEYUP : WM.WM_KEYDOWN, payload])!;
         }
         finally { Marshal.FreeHGlobal(payload); }
+    }
+
+    [DataTestMethod]
+    [DataRow(0u, true)]
+    [DataRow(1u, true)]
+    [DataRow(0u, false)]
+    [DataRow(1u, false)]
+    public async Task LostNativeHookRecoversAfterObservedPhysicalActivityWithoutReplug(uint kind, bool automatic)
+    {
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldHook = Common.Hook; var oldForm = Common.InputCallbackForm;
+        var held = (HeldKeyChord)typeof(InputHook).GetField("easyMouseKeys", StaticFields)!.GetValue(null)!;
+        int[] oldHeld = held.DownKeys;
+        synthetic.KeyboardShortcutsEnabled = false; synthetic.EasyMouse = (int)EasyMouseOption.Disable;
+        MachineStuff.desMachineID = MachineStuff.newDesMachineID = Common.MachineID;
+        var thread = new System.Threading.Thread(() =>
+        {
+            Exception? failure = null;
+            using (var form = new FrmInputCallback())
+            {
+            _ = form.Handle;
+            InputHook? hook = null;
+            form.BeginInvoke((Action)(async () =>
+            {
+                try
+                {
+                    hook = new InputHook(); Common.Hook = hook; Common.InputCallbackForm = form;
+                    Assert.IsTrue(InputHook.ObserveDevices(form.Handle));
+                    if (!automatic) Assert.IsTrue(form.RegisterRecoveryHotkey(), "The Windows emergency hotkey must register independently of the LL hook.");
+                    int calls = 0;
+                    hook.MouseEvent += (_, _, _) => { if (kind == 0) calls++; return false; };
+                    hook.KeyboardEvent += _ => { if (kind == 1) calls++; };
+                    NativeMethods.INPUT64 input = default;
+                    if (kind == 0) { input.mi.dwFlags = (int)NativeMethods.MOUSEEVENTF.MOVE; input.mi.dwExtraInfo = new IntPtr(0x1234); }
+                    else { input.type = 1; input.ki.wVk = 0x87; input.ki.dwFlags = (int)NativeMethods.KEYEVENTF.KEYUP; input.ki.dwExtraInfo = new IntPtr(0x1234); }
+                    async Task Send()
+                    {
+                        Assert.AreEqual(kind == 0 ? 2u : 1u, await Task.Run(() =>
+                        {
+                            if (kind != 0) return NativeMethods.SendInput64(1, [input], Marshal.SizeOf<NativeMethods.INPUT64>());
+                            // Windows may elide a zero MOVE. A single atomic opposing pair
+                            // exercises real mouse capture without leaving the pointer moved.
+                            var position = new Point(); NativeMethods.GetCursorPos(ref position);
+                            int direction = position.X < System.Windows.Forms.SystemInformation.VirtualScreen.Right - 1 ? 1 : -1;
+                            var first = input; first.mi.dx = direction;
+                            var second = input; second.mi.dx = -direction;
+                            return NativeMethods.SendInput64(2, [first, second], Marshal.SizeOf<NativeMethods.INPUT64>());
+                        }));
+                        await Task.Delay(50); // Drain asynchronously dispatched Windows hook messages.
+                    }
+                    await Send(); Assert.IsTrue(calls > 0, "The initial native hook must observe its real Windows callback.");
+                    var handle = typeof(InputHook).GetField(kind == 0 ? "hMouseHook" : "hKeyboardHook", InstanceFields)!;
+                    Assert.AreNotEqual(0, NativeMethods.UnhookWindowsHookEx((int)handle.GetValue(hook)!));
+                    if (automatic)
+                    {
+                        var other = typeof(InputHook).GetField(kind == 0 ? "hKeyboardHook" : "hMouseHook", InstanceFields)!;
+                        Assert.AreNotEqual(0, NativeMethods.UnhookWindowsHookEx((int)other.GetValue(hook)!));
+                    }
+                    int before = calls;
+                    await Send(); Assert.AreEqual(before, calls, "Windows input succeeds while the removed capture hook silently receives nothing.");
+                    typeof(InputHook).GetField(kind == 0 ? "mouseHookSeenAt" : "keyboardHookSeenAt", InstanceFields)!.SetValue(hook, Environment.TickCount64 - 2000);
+                    hook.ObservePhysicalActivity(kind, Environment.TickCount64 - 500);
+                    if (automatic)
+                    {
+                        typeof(InputHook).GetField(kind == 0 ? "keyboardHookSeenAt" : "mouseHookSeenAt", InstanceFields)!.SetValue(hook, Environment.TickCount64 - 2000);
+                        hook.ObservePhysicalActivity(kind == 0 ? 1u : 0u, Environment.TickCount64 - 500);
+                    }
+                    Assert.IsTrue(hook.HasMissedPhysicalInput(Environment.TickCount64));
+                    if (automatic) form.CheckInputHealth();
+                    else
+                    {
+                        // Exercise Windows' real registered shortcut with the LL hook removed.
+                        var chord = new[] { 0xa2, 0xa4, 8 }.Select(key => new NativeMethods.INPUT64
+                        { type = 1, ki = new() { wVk = (short)key, dwExtraInfo = new IntPtr(0x1234) } }).ToArray();
+                        Assert.AreEqual(3u, await Task.Run(() => NativeMethods.SendInput64(3, chord, Marshal.SizeOf<NativeMethods.INPUT64>())));
+                    }
+                    for (int i = 0; i < 60 && hook.HasMissedPhysicalInput(Environment.TickCount64); i++)
+                    {
+                        if (automatic) form.CheckInputHealth(); // The production timer also retries after delivery grace.
+                        await Task.Delay(50);
+                    }
+                    Assert.IsFalse(hook.HasMissedPhysicalInput(Environment.TickCount64));
+                    if (!automatic)
+                    {
+                        Assert.IsTrue((bool)typeof(InputHook).GetField("emergencyBackspaceDown", InstanceFields)!.GetValue(hook)!,
+                            "Windows hotkey recovery must latch Backspace through modifier release.");
+                        foreach (int key in new[] { 0xa2, 0xa4 }) InvokeKeyboard(hook, key, true);
+                        Assert.AreEqual(1, InvokeKeyboard(hook, 8, false), "Modifier release before Backspace must not turn repeat into deletion.");
+                        Assert.AreEqual(1, InvokeKeyboard(hook, 8, true));
+                    }
+                    await Send(); Assert.IsTrue(calls > before, "The existing queued health entrypoint must reinstall capture without a USB operation or network reconnect.");
+                }
+                catch (Exception error) { failure = error; }
+                finally
+                {
+                    if (!automatic)
+                    {
+                        var releases = new[] { 8, 0xa4, 0xa2 }.Select(key => new NativeMethods.INPUT64
+                        { type = 1, ki = new() { wVk = (short)key, dwFlags = (int)NativeMethods.KEYEVENTF.KEYUP, dwExtraInfo = InputSimulation.InjectedInputTag } }).ToArray();
+                        NativeMethods.SendInput64(3, releases, Marshal.SizeOf<NativeMethods.INPUT64>());
+                    }
+                    InputHook.ObserveDevices(IntPtr.Zero);
+                    hook?.Stop(); if (hook != null) GC.SuppressFinalize(hook);
+                    held.Clear(); foreach (int key in oldHeld) held.Update(key, true);
+                    Common.Hook = oldHook; Common.InputCallbackForm = oldForm;
+                    System.Windows.Forms.Application.ExitThread();
+                }
+            }));
+            System.Windows.Forms.Application.Run();
+            }
+            if (failure == null) done.SetResult(); else done.SetException(failure);
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(15));
+    }
+
+    [TestMethod]
+    public void CaptureHealthRequiresMissedActivityOfTheSameDeviceAndAllowsDeliveryGrace()
+    {
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        Assert.IsFalse(hook.HasMissedPhysicalInput(10000), "Idle is not evidence of failed capture and must not generate test input.");
+        typeof(InputHook).GetField("mouseHookSeenAt", InstanceFields)!.SetValue(hook, 10000L);
+        hook.ObservePhysicalActivity(0, 10020);
+        Assert.IsFalse(hook.HasMissedPhysicalInput(11000), "Mouse activity cannot diagnose a keyboard hook that has not been used.");
+        hook.ObservePhysicalActivity(1, 12000);
+        Assert.IsFalse(hook.HasMissedPhysicalInput(12100), "Raw input delivery is not ordered with callback processing.");
+        Assert.IsTrue(hook.HasMissedPhysicalInput(12300));
+        Assert.IsFalse(hook.RecoverMissedInput(), "One deliberately suppressed device must not cause automatic remapper reordering.");
+        typeof(InputHook).GetField("keyboardHookSeenAt", InstanceFields)!.SetValue(hook, 12010L);
+        Assert.IsFalse(hook.HasMissedPhysicalInput(12300), "A delayed matching callback must cancel repair.");
+    }
+
+    [TestMethod]
+    public void CaptureHealthDoesNotCombineUnrelatedOldAndNewSuppressedInput()
+    {
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        hook.ObservePhysicalActivity(1, 1000);
+        hook.ObservePhysicalActivity(0, 100000);
+        Assert.IsTrue(hook.HasMissedPhysicalInput(100300), "The current mouse activity is still available for diagnostics.");
+        Assert.IsFalse(hook.RecoverMissedInput(), "A long-idle keyboard is not evidence of a current two-device capture outage.");
+        Assert.IsFalse(hook.HasMissedPhysicalInput(105000), "Unmatched old activity must expire rather than survive indefinitely.");
+    }
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void ValidInjectedCallbacksProveCaptureIsAliveWithoutChangingRealInputAccounting(bool own)
+    {
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        var real = Event.RealInputEventCount;
+        MachineStuff.desMachineID = MachineStuff.newDesMachineID = Common.MachineID;
+        InvokeKeyboard(hook, 0x87, true, ownInjected: own, foreignInjected: !own);
+        hook.ObservePhysicalActivity(1, Environment.TickCount64);
+        Assert.IsFalse(hook.HasMissedPhysicalInput(Environment.TickCount64 + 1000), "A valid replacement or tagged callback proves this hook is still installed.");
+        Assert.AreEqual(real + (own ? 0u : 1u), Event.RealInputEventCount);
     }
 
     [TestMethod]

@@ -110,6 +110,7 @@ internal static class Receiver
 
     internal static void ProcessPackage(DATA package, TcpSk tcp)
     {
+        if (LogonSession.Active && !LogonSession.Allows(package.Type)) return;
         if (package.Type == PackageType.SharedSettings)
         {
             var snapshot = tcp.ReceivedSharedSettings;
@@ -137,6 +138,14 @@ internal static class Receiver
 
         package = CoalesceMouseMoves(package, tcp);
 
+        if ((package.Des == Common.MachineID || package.Des == ID.ALL)
+            && (package.Type == PackageType.Keyboard || package.Type == PackageType.Mouse && package.Md.dwFlags != WM.WM_MOUSEMOVE))
+            InputSimulation.ReceiveHeldInput(tcp, () => ApplyPackage(package, tcp));
+        else ApplyPackage(package, tcp);
+    }
+
+    private static void ApplyPackage(DATA package, TcpSk tcp)
+    {
         switch (package.Type)
         {
             case PackageType.Keyboard:
