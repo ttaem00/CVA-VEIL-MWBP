@@ -203,6 +203,40 @@ public sealed class Rc8SettingsTests
         });
     }
 
+    [TestMethod]
+    public async Task WindowsCursorButtonCannotChangeMouseKeysOrScreenSwitching()
+    {
+        await OnSta(() =>
+        {
+            var original = Setting.Values; var destination = MachineStuff.desMachineID; var next = MachineStuff.newDesMachineID;
+            string originalName = Common.MachineName;
+            var before = new NativeMethods.MOUSEKEYS { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.MOUSEKEYS>() };
+            Assert.IsTrue(NativeMethods.SystemParametersInfoMouseKeys(0x36, before.cbSize, ref before, 0));
+            try
+            {
+                Setting.Values = Settings(); Setting.Values.DrawMouse = true;
+                Common.MachineName = "LOCAL-PC"; Setting.Values.Username = "cursor-test";
+                Setting.Values.EasyMouse = (int)EasyMouseOption.Custom; Setting.Values.EasyMouseActivationKeys = [0x14];
+                using var window = new SettingsWindowWithoutNetworkTimer(); window.Show(); Application.DoEvents();
+                MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+                var tabs = window.Controls.OfType<TabControl>().Single();
+                tabs.SelectedTab = tabs.TabPages.Cast<TabPage>().Single(t => t.Text == "Other Options");
+                Application.DoEvents();
+                var button = Descendants(window).OfType<Button>().Single(c => c.Name == "nativeCursorRecovery");
+                button.PerformClick();
+                var after = new NativeMethods.MOUSEKEYS { cbSize = before.cbSize };
+                Assert.IsTrue(NativeMethods.SystemParametersInfoMouseKeys(0x36, after.cbSize, ref after, 0));
+                Assert.AreEqual(before.dwFlags, after.dwFlags, "A display choice cannot enable OS Mouse Keys or change numeric keypad behavior.");
+                Assert.AreEqual(before.iMaxSpeed, after.iMaxSpeed); Assert.AreEqual(before.iTimeToMaxSpeed, after.iTimeToMaxSpeed);
+                Assert.IsFalse(Setting.Values.DrawMouse);
+                Assert.AreEqual((int)EasyMouseOption.Custom, Setting.Values.EasyMouse);
+                CollectionAssert.AreEqual(new[] { 0x14 }, Setting.Values.EasyMouseActivationKeys);
+                Assert.AreEqual((ID)202, Common.DesMachineID); Assert.AreEqual((ID)202, MachineStuff.newDesMachineID);
+            }
+            finally { Setting.Values = original; Common.MachineName = originalName; MachineStuff.desMachineID = destination; MachineStuff.newDesMachineID = next; }
+        });
+    }
+
     [DataTestMethod]
     [DataRow(100)]
     [DataRow(150)]
