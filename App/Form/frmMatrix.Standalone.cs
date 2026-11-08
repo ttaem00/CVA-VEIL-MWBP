@@ -21,6 +21,7 @@ internal partial class FrmMatrix
     private CheckBox checkBoxMouseEdgeSwitching;
     private bool portableMachineTilesConfigured;
     private bool layingOutMatrix;
+    private bool layingOutMainPage;
 
     protected override void OnLoad(EventArgs e)
     {
@@ -34,6 +35,64 @@ internal partial class FrmMatrix
         ConfigurePortableMachineTiles();
         AddDiscoveryButton();
         Ui.Apply(this, toolTip);
+        ArrangePortableConnectionActions();
+        linkLabelHelp.Text = Ui.Text("&Help / Project page") + " (F1)";
+        SetOptionTip(linkLabelHelp, null, "Press F1 on a setting for help. Open the project page for connection and troubleshooting guides.");
+        Resize -= FrmMatrix_Resize;
+        Resize += (_, _) => LayoutPortableMainPage();
+        tabPageMain.SizeChanged += (_, _) => LayoutPortableMainPage();
+        var helpLinks = Actions(linkLabelHelp, linkLabelMiniLog);
+        helpLinks.Name = "settingsHelpLinks"; helpLinks.TabIndex = tabControlSetting.TabIndex + 1;
+        helpLinks.Dock = DockStyle.Bottom; helpLinks.FlowDirection = FlowDirection.RightToLeft;
+        helpLinks.Padding = new Padding(4, 3, 4, 3);
+        Controls.Add(helpLinks); helpLinks.SendToBack();
+        tabControlSetting.BringToFront();
+        LayoutPortableMainPage();
+    }
+
+    private void LayoutPortableMainPage()
+    {
+        if (layingOutMainPage || !portableMachineTilesConfigured) return;
+        layingOutMainPage = true;
+        try
+        {
+            int gap = Math.Max(6, Font.Height / 2);
+            groupBoxKeySetup.Width = Math.Max(1, tabPageMain.ClientSize.Width - groupBoxKeySetup.Left - gap);
+            groupBoxMachineMatrix.Top = groupBoxKeySetup.Bottom + gap;
+            groupBoxMachineMatrix.Width = groupBoxKeySetup.Width;
+            int footerHeight = Math.Max(buttonOK.Height, buttonCancel.Height);
+            groupBoxMachineMatrix.Height = Math.Max(1, tabPageMain.ClientSize.Height - groupBoxMachineMatrix.Top - footerHeight - gap * 3);
+            // The monitor surface may grow the form to fit its PC editors. Use the resulting tab size.
+            int footerTop = tabPageMain.ClientSize.Height - footerHeight - gap;
+            buttonCancel.Location = new Point(tabPageMain.ClientSize.Width - buttonCancel.Width - gap, footerTop);
+            buttonOK.Location = new Point(buttonCancel.Left - buttonOK.Width - gap, footerTop);
+            groupBoxMachineMatrix.Height = Math.Max(1, footerTop - gap - groupBoxMachineMatrix.Top);
+            buttonOK.BringToFront(); buttonCancel.BringToFront();
+        }
+        finally { layingOutMainPage = false; }
+    }
+
+    private void ArrangePortableConnectionActions()
+    {
+        var find = groupBoxKeySetup.Controls["findComputers"];
+        var send = groupBoxKeySetup.Controls["sendFiles"];
+        var recovery = groupBoxKeySetup.Controls["mainInputRecovery"];
+        SetOptionTip(find, null, find.AccessibleDescription);
+        SetOptionTip(send, null, "Choose a connected PC and the files to send. Large files can be sent independently of the automatic clipboard limit.");
+        SetOptionTip(buttonOK, null, "Save the monitor layout and PC name/IP mappings. The Options tab saves automatically.");
+        optionHelp.SetHelpString(matrixSurface, matrixSurface.AccessibleDescription);
+        var actions = Actions(find, send, recovery);
+        actions.Name = "primaryConnectionActions";
+        actions.Dock = DockStyle.Top;
+        actions.SizeChanged += (_, _) =>
+        {
+            int extra = Math.Max(0, groupBoxKeySetup.DisplayRectangle.Top + actions.Height + 7 - groupBoxKeySetup.Height);
+            if (extra == 0) return;
+            groupBoxKeySetup.Height += extra;
+            groupBoxMachineMatrix.Top += extra;
+            Height += extra;
+        };
+        groupBoxKeySetup.Controls.Add(actions);
     }
 
     private void ConfigurePortableMachineTiles()

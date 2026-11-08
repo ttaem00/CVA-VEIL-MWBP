@@ -15,6 +15,7 @@ namespace MouseWithoutBorders.UnitTests.Core;
 public sealed class Rc8SettingsTests
 {
     private string folder = null!, path = null!;
+    private readonly List<MouseWithoutBorders.Class.Settings> ownedSettings = new();
     [TestInitialize]
     public void Setup()
     {
@@ -22,12 +23,18 @@ public sealed class Rc8SettingsTests
         Directory.CreateDirectory(folder); path = Path.Combine(folder, "prefs.json");
     }
     [TestCleanup]
-    public void Cleanup() { DurableTransfers.ResetAfterTests(); Directory.Delete(folder, true); }
+    public void Cleanup()
+    {
+        // UI changes queue asynchronous writes. Finish test-owned saves before deleting their directory.
+        foreach (var settings in ownedSettings) settings.SaveSettingsSynchronously();
+        ownedSettings.Clear(); DurableTransfers.ResetAfterTests(); Directory.Delete(folder, true);
+    }
     private MouseWithoutBorders.Class.Settings Settings(MouseWithoutBordersSettings? document = null)
     {
         document ??= new MouseWithoutBordersSettings(); document.Properties.SecurityKey.Value = "test-key";
         PortableSettingsStore.Write(path, JsonSerializer.Serialize(document, SettingsUtils.SerializerOptions));
-        return new MouseWithoutBorders.Class.Settings(new SettingsUtils(path), false);
+        var settings = new MouseWithoutBorders.Class.Settings(new SettingsUtils(path), false);
+        ownedSettings.Add(settings); return settings;
     }
 
     [TestMethod]
@@ -88,7 +95,7 @@ public sealed class Rc8SettingsTests
     {
         foreach (Control c in parent.Controls) { yield return c; foreach (var nested in Descendants(c)) yield return nested; }
     }
-    private static async Task OnSta(Action action)
+    private static async Task OnSta(Action action, int timeoutSeconds = 25)
     {
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new System.Threading.Thread(() =>
@@ -101,7 +108,7 @@ public sealed class Rc8SettingsTests
             catch (Exception error) { done.SetException(error); }
         }) { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA); thread.Start();
-        await done.Task.WaitAsync(TimeSpan.FromSeconds(25));
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(timeoutSeconds));
     }
 
     [TestMethod]
@@ -949,6 +956,111 @@ public sealed class Rc8SettingsTests
             Pump(TimeSpan.FromSeconds(3)); Assert.IsTrue(window.IsDisposed);
         });
     }
+    [DataTestMethod]
+    [DataRow(100, "ko-KR")]
+    [DataRow(150, "ko-KR")]
+    [DataRow(200, "ko-KR")]
+    [DataRow(100, "en-US")]
+    [DataRow(150, "en-US")]
+    [DataRow(200, "en-US")]
+    public async Task LocalizedSettingsPagesRenderFromSyntheticPreferences(int scalePercent, string cultureName)
+    {
+        int holdSeconds = scalePercent == 100 && cultureName == "ko-KR"
+            && int.TryParse(Environment.GetEnvironmentVariable("MWBP_UI_QA_HOLD_SECONDS"), out int requested) && requested is > 0 and <= 300 ? requested : 0;
+        await OnSta(() =>
+        {
+            Application.EnableVisualStyles();
+            var original = Setting.Values;
+            string machineName = Common.MachineName;
+            var culture = System.Globalization.CultureInfo.CurrentUICulture;
+            var topologyField = typeof(MonitorTopology).GetField("state", BindingFlags.Static | BindingFlags.NonPublic)!;
+            var matrixField = typeof(MachineStuff).GetField("mcMatrix", BindingFlags.Static | BindingFlags.NonPublic)!;
+            var poolField = typeof(MachineStuff).GetField("_machinePool", BindingFlags.Static | BindingFlags.NonPublic)!;
+            var topology = topologyField.GetValue(null); var matrix = matrixField.GetValue(null); var pool = poolField.GetValue(null);
+            try
+            {
+                System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo(cultureName);
+                var document = new MouseWithoutBordersSettings();
+                document.Properties.DefaultReceivingFolder = @"C:\Users\Example\Desktop\MWBP";
+                document.Properties.MachineID.Value = 103;
+                document.Properties.MachineMatrixString = ["LOCAL-PC", "SECOND-PC", "", ""];
+                Setting.Values = Settings(document); Common.MachineName = "LOCAL-PC"; Setting.Values.Username = "ui-preview";
+                matrixField.SetValue(null, new[] { "LOCAL-PC", "SECOND-PC", "", "" });
+                poolField.SetValue(null, new MachinePool());
+                MachineStuff.MachinePool.Initialize(new[] { new MachineInf { Name = "LOCAL-PC", Id = (ID)103 }, new MachineInf { Name = "SECOND-PC", Id = (ID)101 } });
+                MonitorTopology.AcceptPeer(103, [new("DISPLAY1", 0, 0, 1920, 1080), new("DISPLAY2", 0, 1080, 1920, 1080)]);
+                MonitorTopology.AcceptPeer(101, [new("DISPLAY1", 0, 0, 1920, 1080)]);
+                MonitorTopology.ApplyOrigins([new(103, "DISPLAY1", 0, 0), new(103, "DISPLAY2", 0, 1080), new(101, "DISPLAY1", 1920, 0)]);
+                using var settings = new SettingsWindowWithoutNetworkTimer();
+                settings.ShowInTaskbar = false;
+                settings.StartPosition = FormStartPosition.Manual; settings.Location = new Point(-10000, -10000);
+                settings.Scale(new SizeF(scalePercent / 100f, scalePercent / 100f));
+                settings.Font = new Font(settings.Font.FontFamily, settings.Font.SizeInPoints * scalePercent / 100f);
+                settings.Show(); Application.DoEvents();
+                var help = (HelpProvider)typeof(MouseWithoutBorders.FrmMatrix).GetField("optionHelp", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(settings)!;
+                var find = Descendants(settings).Single(c => c.Name == "findComputers");
+                var send = Descendants(settings).Single(c => c.Name == "sendFiles");
+                Assert.AreSame(send, find.Parent!.GetNextControl(find, true), "Tab moves from finding a PC to sending files.");
+                foreach (var link in Descendants(settings).OfType<LinkLabel>().Where(c => c.Name is "linkLabelHelp" or "linkLabelMiniLog"))
+                {
+                    Assert.IsTrue(link.Visible && link.Parent!.ClientRectangle.Contains(link.Bounds), "Help and diagnostics remain visible and keyboard reachable.");
+                    var bounds = settings.RectangleToClient(link.RectangleToScreen(link.ClientRectangle));
+                    Assert.IsTrue(settings.ClientRectangle.Contains(bounds), $"Help link outside the form: {link.Name}/{bounds} in {settings.ClientRectangle}.");
+                }
+                var tabs = Descendants(settings).OfType<TabControl>().Single();
+                var helpLinks = settings.Controls.Cast<Control>().Single(c => c.Name == "settingsHelpLinks");
+                Assert.IsFalse(tabs.Bounds.IntersectsWith(helpLinks.Bounds), "The docked help row must reserve space instead of covering the tab page.");
+                foreach (TabPage page in tabs.TabPages)
+                {
+                    tabs.SelectedTab = page; Application.DoEvents();
+                    foreach (Control child in Descendants(page).Where(c => c.Visible && c is Button))
+                    {
+                        Assert.IsTrue(child.Width >= child.GetPreferredSize(Size.Empty).Width || child is Button { AutoEllipsis: true },
+                            $"Button text clipped at {scalePercent}%: {child.Name}/{child.Text}.");
+                        Assert.IsTrue(child.Parent!.ClientRectangle.Contains(child.Bounds), $"Button outside its page at {scalePercent}%: {child.Name}/{child.Bounds} in {child.Parent.ClientRectangle}.");
+                        if (child.Name is "buttonOK" or "buttonCancel")
+                        {
+                            var formBounds = settings.RectangleToClient(child.RectangleToScreen(child.ClientRectangle));
+                            Assert.IsFalse(formBounds.IntersectsWith(helpLinks.Bounds), "The help row cannot cover Apply or Close.");
+                        }
+                        foreach (Control sibling in child.Parent!.Controls)
+                            if (sibling != child && sibling.Visible && sibling is Button)
+                                Assert.IsFalse(child.Bounds.IntersectsWith(sibling.Bounds), $"Buttons overlap: {child.Name}/{sibling.Name}.");
+                    }
+                    if (page.Name == "tabPageAdvancedSettings")
+                    {
+                        var editor = Descendants(page).OfType<TextBox>().Single(c => c.Name == "textBoxMachineName2IP");
+                        Assert.IsFalse(string.IsNullOrWhiteSpace(help.GetHelpString(editor)));
+                        Assert.AreEqual(editor.AccessibleDescription, help.GetHelpString(editor), "Keyboard and screen-reader help match hover help.");
+                        var details = Descendants(page).OfType<LinkLabel>().Single(c => c.Name == "ipMappingHelp");
+                        Assert.IsTrue(details.TabStop && details.Visible, "Mapping instructions remain available without hover.");
+                    }
+                    if (Environment.GetEnvironmentVariable("RUNNER_TEMP") is string root)
+                    {
+                        string previews = Path.Combine(root, "mwb-ui-previews"); Directory.CreateDirectory(previews);
+                        using var image = new Bitmap(settings.Width, settings.Height);
+                        settings.DrawToBitmap(image, new Rectangle(Point.Empty, settings.Size));
+                        image.Save(Path.Combine(previews, $"settings-{cultureName[..2]}-{page.Name}-{scalePercent}.png"), System.Drawing.Imaging.ImageFormat.Png);
+                    }
+                }
+                if (holdSeconds > 0)
+                {
+                    tabs.SelectedIndex = 0; settings.Location = new Point(80, 80); settings.ShowInTaskbar = true;
+                    settings.Activate(); Application.DoEvents();
+                    if (Environment.GetEnvironmentVariable("RUNNER_TEMP") is string root)
+                        File.WriteAllText(Path.Combine(root, "ui-qa-ready.json"), JsonSerializer.Serialize(new { processId = Environment.ProcessId, window = settings.Handle.ToInt64(), syntheticSettings = path, scalePercent }));
+                    Pump(TimeSpan.FromSeconds(holdSeconds));
+                }
+                settings.Close();
+            }
+            finally
+            {
+                topologyField.SetValue(null, topology); matrixField.SetValue(null, matrix); poolField.SetValue(null, pool);
+                Setting.Values = original; Common.MachineName = machineName; System.Globalization.CultureInfo.CurrentUICulture = culture;
+            }
+        }, timeoutSeconds: 25 + holdSeconds);
+    }
+
     private static void Pump(TimeSpan duration)
     {
         var clock = Stopwatch.StartNew();

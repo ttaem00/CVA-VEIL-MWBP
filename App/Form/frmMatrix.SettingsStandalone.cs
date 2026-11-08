@@ -21,6 +21,7 @@ internal partial class FrmMatrix
     private CheckBox automaticTransferClose;
     private CheckBox limitAutomaticClipboardFiles;
     private CheckBox blockFullscreenSwitching;
+    private HelpProvider optionHelp;
 
     private Button InputRecoveryButton(string name)
     {
@@ -140,6 +141,7 @@ internal partial class FrmMatrix
         {
             control.Dock = DockStyle.None; control.Anchor = AnchorStyles.Top | AnchorStyles.Left;
             control.Margin = new Padding(4, 2, 4, 2);
+            control.TabIndex = Controls.Count;
             Controls.Add(control);
         }
         private int ColumnWidth(int width) => Math.Max(1, (width - Padding.Horizontal) /
@@ -227,6 +229,15 @@ internal partial class FrmMatrix
         if (defaults != null) text = (string.IsNullOrWhiteSpace(text) ? "" : text + "\n\n") + Ui.Format("Default: {0}.", Ui.Text(defaults));
         toolTip.SetToolTip(option, text);
         option.AccessibleDescription = text;
+        if (optionHelp == null) { optionHelp = new HelpProvider(); components.Add(optionHelp); }
+        optionHelp.SetHelpString(option, text);
+    }
+    private LinkLabel SettingsHelpLink(string text, string help)
+    {
+        var link = new LinkLabel { Text = Ui.Text(text), AutoSize = true, Margin = new Padding(4), TabStop = true };
+        SetOptionTip(link, null, help);
+        link.LinkClicked += (_, _) => MessageBox.Show(this, Ui.Text(help), Ui.Text(text), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        return link;
     }
     private void AddOption(SettingsStack parent, CheckBox option, string defaults, string explanation = null)
     {
@@ -245,7 +256,7 @@ internal partial class FrmMatrix
         foreach (var control in controls)
         {
             control.Dock = DockStyle.None; control.Anchor = AnchorStyles.Top | AnchorStyles.Left;
-            control.Margin = new Padding(3, 1, 8, 1); flow.Controls.Add(control);
+            control.Margin = new Padding(3, 1, 8, 1); control.TabIndex = flow.Controls.Count; flow.Controls.Add(control);
         }
         return flow;
     }
@@ -351,9 +362,12 @@ internal partial class FrmMatrix
             receivingFolderPath.Name = "receivingFolderPath";
             sharing.Add(receivingFolderPath);
             const string receivingHelp = "Used for new drag/drop transfers when you aren't dropping into an Explorer folder. Existing transfers keep their destination.\n\nDefault: Desktop \\ MouseWithoutBorders.";
-            toolTip.SetToolTip(receivingLabel, receivingHelp);
-            toolTip.SetToolTip(receivingFolderPath, receivingHelp);
-            sharing.Add(Actions(SettingsButton("Choose folder…", ChooseReceivingFolder), SettingsButton("Use default", ResetReceivingFolder)));
+            SetOptionTip(receivingLabel, null, receivingHelp);
+            SetOptionTip(receivingFolderPath, null, receivingHelp);
+            var chooseFolder = SettingsButton("Choose folder…", ChooseReceivingFolder);
+            var defaultFolder = SettingsButton("Use default", ResetReceivingFolder);
+            SetOptionTip(chooseFolder, null, receivingHelp); SetOptionTip(defaultFolder, null, receivingHelp);
+            sharing.Add(Actions(chooseFolder, defaultFolder));
             automaticTransferClose = new CheckBox { Name = "automaticTransferClose", Text = "Automatically close finished transfers", Checked = Setting.Values.AutoCloseTransferWindow };
             AddOption(sharing, automaticTransferClose, "On", "Close this PC's completed or cancelled list after cleanup. Errors stay visible.");
             automaticTransferClose.CheckedChanged += (_, _) =>
@@ -433,8 +447,11 @@ internal partial class FrmMatrix
             AddOption(network, checkBoxReverseLookup, "Off", "Ask the network's name service (DNS) to check that an IP address matches the expected PC name. Use this to troubleshoot name/address mismatches. Some home networks have no matching DNS records, so enabling this check can prevent a connection.");
             network.Add(new Label { Text = "Machine name to IP address mappings", AutoSize = true });
             const string mappingHelp = "MWB normally finds your other PCs automatically. If they already connect, you can leave this box empty.\n\nIf MWB cannot find a PC, enter its exact name from Machine Setup, a space, and its local IP address. Add one PC per line.\nExample: OFFICE-PC 192.168.1.20\n\nAn IP address is a PC's address on your network. Find it in that PC's Windows network settings (IPv4 address). If it changes, update the entry here. A router setting called a DHCP reservation can keep that address from changing.";
-            network.Add(Explanation(mappingHelp));
-            toolTip.SetToolTip(textBoxMachineName2IP, mappingHelp);
+            var mappingDetails = SettingsHelpLink("How to enter an IP mapping…", mappingHelp);
+            mappingDetails.Name = "ipMappingHelp";
+            network.Add(Actions(Explanation(Ui.Text("If discovery fails, add mappings and choose Apply on PC connections.")), mappingDetails));
+            SetOptionTip(textBoxMachineName2IP, null, mappingHelp);
+            textBoxMachineName2IP.PlaceholderText = "OFFICE-PC 192.168.1.20";
             // A multiline TextBox can still report a one-line preferred height.
             // Keep room for entries even when the editor is empty.
             textBoxMachineName2IP.AutoSize = false;
@@ -524,6 +541,12 @@ internal partial class FrmMatrix
         }
         async void ChangeAdministratorControl(object sender, EventArgs args)
         {
+            bool disabling = sender == disableProtectedInput;
+            string notice = disabling
+                ? "Disable administrator control on this PC? Paired PCs will no longer control administrator apps or Windows approval screens. Normal sharing and your connections are kept."
+                : permission;
+            if (MessageBox.Show(this, Ui.Text(notice), Ui.Text(disabling ? "Disable administrator control…" : "Install MWBP…"),
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
             content.Enabled = false;
             try
             {
@@ -543,11 +566,12 @@ internal partial class FrmMatrix
         }
         protectedInput = SettingsButton("Install MWBP…", ChangeAdministratorControl);
         protectedInput.Name = "setupAdministratorControl";
-        protectedInput.AccessibleDescription = Ui.Text(permission);
-        toolTip.SetToolTip(protectedInput, protectedInput.AccessibleDescription);
-        content.Add(protectedInput);
-        content.Add(Explanation(permission));
-        content.Add(Explanation("Connections, screen layout and transfer history stay on this PC."));
+        SetOptionTip(protectedInput, null, permission);
+        disableProtectedInput = SettingsButton("Disable administrator control…", ChangeAdministratorControl);
+        disableProtectedInput.Name = "disableAdministratorControl"; disableProtectedInput.Visible = false;
+        SetOptionTip(disableProtectedInput, null, "Disable administrator control on this PC? Paired PCs will no longer control administrator apps or Windows approval screens. Normal sharing and your connections are kept.");
+        content.Add(Actions(protectedInput, disableProtectedInput));
+        content.Add(SettingsHelpLink("About administrator control…", permission));
 
         var management = Section("Manage this installation");
         if (PortableApplication.IsInstalledCopy)
@@ -564,9 +588,7 @@ internal partial class FrmMatrix
             tab.Enter += (_, _) => RefreshInstallationStartup();
             management.Add(SettingsButton("Uninstall…", UninstallInstalledCopy));
         }
-        disableProtectedInput = SettingsButton("Disable administrator control…", ChangeAdministratorControl);
-        disableProtectedInput.Name = "disableAdministratorControl"; disableProtectedInput.Visible = false;
-        management.Add(disableProtectedInput);
+        var folders = new List<Control>();
         foreach (var location in new[] { (Title: "Open application folder", Path: PortableApplication.CurrentExecutablePath),
             (Title: "Open settings folder", Path: PortableApplication.CurrentSettingsPath) })
         {
@@ -575,9 +597,10 @@ internal partial class FrmMatrix
                 try { Process.Start(new ProcessStartInfo(Path.GetDirectoryName(location.Path)) { UseShellExecute = true }); }
                 catch (Exception error) { SettingsError(error); }
             });
-            toolTip.SetToolTip(open, location.Path); open.AccessibleDescription = location.Path;
-            management.Add(open);
+            SetOptionTip(open, null, location.Path);
+            folders.Add(open);
         }
+        management.Add(Actions(folders.ToArray()));
         content.Add(management);
         tab.Enter += (_, _) => RefreshAdministratorControl();
         HostStack(tab, content); tabControlSetting.TabPages.Add(tab);
