@@ -88,6 +88,15 @@ namespace MouseWithoutBorders.Class
         public long BirthTime { get; set; }
 
         public uint MachineId { get; set; }
+        private PeerInputWriter inputWriter;
+        internal PeerInputWriter InputWriter => Volatile.Read(ref inputWriter);
+        internal PeerInputWriter GetInputWriter(SocketStuff owner)
+        {
+            var writer = InputWriter;
+            if (writer != null) return writer;
+            var created = new PeerInputWriter(owner, this);
+            return Interlocked.CompareExchange(ref inputWriter, created, null) ?? created;
+        }
         internal SharedSettingsSnapshot ReceivedSharedSettings { get; set; }
         internal (byte[] Bytes, int Count)? PendingHeader { get; set; }
 
@@ -141,6 +150,7 @@ namespace MouseWithoutBorders.Class
 
         public void Dispose()
         {
+            InputWriter?.Stop();
             encryptedStream?.Dispose();
 
             decryptedStream?.Dispose();
@@ -161,11 +171,49 @@ namespace MouseWithoutBorders.Class
         internal const int CONNECT_TIMEOUT = 60000;
         private static readonly ConcurrentDictionary<string, int> FailedAttempt = new();
 
+        private List<TcpSk> tcpSockets;
+        private TcpSk[] socketSnapshot;
+        private int inputClosed;
         internal List<TcpSk> TcpSockets
         {
-            get; private set;
+            get => tcpSockets;
+            private set { tcpSockets = value; PublishSocketSnapshot(); }
+        }
+        internal TcpSk[] SocketSnapshot => Volatile.Read(ref socketSnapshot) ?? Array.Empty<TcpSk>();
+        internal void PublishSocketSnapshot() => Volatile.Write(ref socketSnapshot, TcpSockets?.ToArray() ?? Array.Empty<TcpSk>());
+        internal bool OwnsQueuedInput(TcpSk peer) => Volatile.Read(ref inputClosed) == 0
+            && ReferenceEquals(Common.Sk, this) && peer.Status == SocketStatus.Connected && peer.BackingSocket != null
+            && Array.IndexOf(SocketSnapshot, peer) >= 0;
 
-            // set { tcpSockets = value; }
+        internal bool EnqueueInput(DATA packet, uint? exceptDes)
+        {
+            bool accepted = false;
+            var recipients = new HashSet<uint>();
+            foreach (var peer in SocketSnapshot)
+            {
+                if (!OwnsQueuedInput(peer) || recipients.Contains(peer.MachineId)
+                    || !(peer.MachineId == (uint)packet.Des || packet.Des == ID.ALL && peer.MachineId != exceptDes
+                        && MachineStuff.InMachineMatrix(peer.MachineName))) continue;
+                var writer = peer.GetInputWriter(this);
+                bool queued = packet.Type == PackageType.HideMouse ? writer.ReleaseHeldInput(true) : writer.Enqueue(packet);
+                if (queued) { accepted = true; recipients.Add(peer.MachineId); }
+            }
+            return accepted;
+        }
+
+        internal void FailQueuedInput(TcpSk peer)
+        {
+            peer.InputWriter?.Stop();
+            peer.Status = SocketStatus.SendError;
+            var socket = peer.BackingSocket; peer.BackingSocket = null;
+            try { socket?.Dispose(); } catch (Exception error) { Logger.Log(error); }
+            if (!ReferenceEquals(Common.Sk, this)) return;
+            InputSimulation.PeerDisconnected(peer.MachineId);
+            if (!SocketSnapshot.Any(t => t.MachineId == peer.MachineId && t.Status == SocketStatus.Connected && t.BackingSocket != null))
+            {
+                Common.InputCallbackForm?.NotifyInputPeerFailure(this, peer.MachineId);
+            }
+            InitAndCleanup.PleaseReopenSocket = InitAndCleanup.REOPEN_WHEN_WSAECONNRESET;
         }
 
         internal int TcpPort
@@ -361,6 +409,8 @@ namespace MouseWithoutBorders.Class
 
         internal void Close(bool sentWait)
         {
+            Interlocked.Exchange(ref inputClosed, 1);
+            foreach (var peer in SocketSnapshot) peer.InputWriter?.Stop();
             try
             {
                 if (!Common.RunOnScrSaverDesktop)
@@ -505,7 +555,6 @@ namespace MouseWithoutBorders.Class
             try
             {
                 var socket = tcp.BackingSocket;
-                InputSendBudget.CheckBeforeWrite(socket);
                 Stream encryptedStream = tcp.EncryptedStream;
                 if (socket == null || !socket.Connected || encryptedStream == null)
                 {
@@ -522,7 +571,7 @@ namespace MouseWithoutBorders.Class
                     bytes[1] = (byte)(bytes[1] + bytes[i]);
                 }
 
-                InputSendBudget.Write(encryptedStream, socket, bytes);
+                encryptedStream.Write(bytes, 0, bytes.Length);
             }
             catch (Exception e) when (e is IOException or SocketException or ObjectDisposedException)
             {
@@ -683,12 +732,7 @@ namespace MouseWithoutBorders.Class
 
             byte[] dataAsBytes = data.Bytes;
             int rv;
-            if (!InputSendBudget.Enter(tcp))
-            {
-                tcp.BackingSocket?.Dispose();
-                throw new ExpectedSocketException("Input callback could not acquire the peer frame lock; retired its connection.");
-            }
-            try
+            lock (tcp)
             {
                 // A queued hide may arrive after this recipient has become active again.
                 if (data.Type == PackageType.HideMouse &&
@@ -696,7 +740,6 @@ namespace MouseWithoutBorders.Class
                     return dataAsBytes.Length;
                 rv = TcpSendDataLocked(tcp, dataAsBytes);
             }
-            finally { Monitor.Exit(tcp); }
             if (rv < dataAsBytes.Length)
             {
                 Logger.Log("TcpSend error! Length of sent data is unexpected.");
@@ -707,32 +750,13 @@ namespace MouseWithoutBorders.Class
             return rv;
         }
 
-        // Runs off the input hook. Check ownership after acquiring each peer's
-        // frame lock, so delayed recovery cannot release a newly resumed hold.
-        internal void ReleaseInput(IReadOnlyList<DATA> releases)
+        // Insert cleanup synchronously into the same FIFO as DOWNs and later
+        // resumed input. Never wait for a frame owner on the hook thread.
+        internal void ReleaseInput(ID previous)
         {
-            TcpSk[] sockets;
-            lock (TcpSocketsLock) sockets = TcpSockets.ToArray();
-            var delivered = new HashSet<uint>();
-            foreach (var tcp in sockets)
+            foreach (var tcp in SocketSnapshot)
             {
-                if (tcp == null || delivered.Contains(tcp.MachineId)) continue;
-                try
-                {
-                    lock (tcp)
-                    {
-                        if (!ReferenceEquals(Common.Sk, this) || tcp.Status != SocketStatus.Connected || tcp.BackingSocket == null
-                            || Common.DesMachineID == ID.ALL || (uint)Common.DesMachineID == tcp.MachineId) continue;
-                        foreach (var release in releases)
-                        {
-                            if ((uint)release.Des != tcp.MachineId && (release.Des != ID.ALL || !MachineStuff.InMachineMatrix(tcp.MachineName))) continue;
-                            release.Id = Interlocked.Increment(ref Package.PackageID);
-                            TcpSend(tcp, release);
-                        }
-                        delivered.Add(tcp.MachineId);
-                    }
-                }
-                catch (Exception error) { Logger.Log(error); }
+                if (OwnsQueuedInput(tcp)) tcp.InputWriter?.ReleaseHeldInput(previous == ID.ALL || (uint)previous == tcp.MachineId);
             }
         }
 
@@ -1365,7 +1389,7 @@ namespace MouseWithoutBorders.Class
                 currentSocket.SendBufferSize = Package.PACKAGE_SIZE * 10000;
                 currentSocket.ReceiveBufferSize = Package.PACKAGE_SIZE * 10000;
                 currentSocket.NoDelay = true; // This is very interesting to know:(
-                currentSocket.SendTimeout = 100; // Input transport must not outlive a low-level hook callback.
+                currentSocket.SendTimeout = 500; // Network I/O runs on the peer writer, never on the input hook.
                 d.MachineName = Common.MachineName;
 
                 d.Type = PackageType.Handshake;
@@ -1906,6 +1930,7 @@ namespace MouseWithoutBorders.Class
                 PreventDoS(TcpSockets);
 #endif
                 TcpSockets.Add(tcp);
+                PublishSocketSnapshot();
             }
 
             return tcp;
@@ -1922,6 +1947,7 @@ namespace MouseWithoutBorders.Class
                 PreventDoS(TcpSockets);
 #endif
                 TcpSockets.Add(tcp);
+                PublishSocketSnapshot();
             }
 
             return tcp;
@@ -2047,14 +2073,21 @@ namespace MouseWithoutBorders.Class
                         foreach (TcpSk t in toBeRemoved)
                         {
                             _ = TcpSockets.Remove(t);
+                            t.InputWriter?.Stop();
+                            InputSimulation.PeerDisconnected(t.MachineId);
                         }
+                        PublishSocketSnapshot();
+
+                        // Input ownership belongs to the exact accepted channel,
+                        // even when a sibling connection to that PC is still live.
+                        if (tcp != null && tcp.Status != SocketStatus.Connected)
+                            InputSimulation.PeerDisconnected(tcp.MachineId);
 
                         if (tcp != null && (ID)tcp.MachineId is not (ID.NONE or ID.ALL)
                             && !TcpSockets.Any(t => t.MachineId == tcp.MachineId
                                 && t.Status == SocketStatus.Connected && t.BackingSocket != null))
                         {
                             DragDrop.PeerDisconnected(this, (ID)tcp.MachineId);
-                            InputSimulation.PeerDisconnected(tcp.MachineId);
                         }
                     }
                 }

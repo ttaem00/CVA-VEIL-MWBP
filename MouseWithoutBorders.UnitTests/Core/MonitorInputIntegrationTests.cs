@@ -18,6 +18,7 @@ public sealed class MonitorInputIntegrationTests
 {
     private const BindingFlags StaticFields = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
     private const BindingFlags InstanceFields = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+    private static int failedRemotePacketId = 1900030;
     private readonly List<(FieldInfo Field, object? Owner, object? Value)> saved = new();
     private MouseWithoutBorders.Class.Settings originalSettings = null!, synthetic = null!;
     private SocketStuff originalTransport = null!;
@@ -196,6 +197,7 @@ public sealed class MonitorInputIntegrationTests
         hook.MouseEvent += Event.MouseEvent;
         int wheel = message == WM.WM_MOUSEWHEEL ? 120 : 0;
         Assert.AreEqual(1, InvokeMouse(hook, message, new Point(900, 500), wheel), "Remote input must be suppressed on the controller.");
+        WaitForInput(transport);
         Assert.AreEqual((long)Package.PACKAGE_SIZE, wire.Length, "The first button must be one self-contained packet, without a preceding MOVE.");
         var delivered = new DATA(wire.ToArray());
         Assert.AreEqual((int)PackageType.Mouse, (int)delivered.Type & 0xff);
@@ -269,11 +271,13 @@ public sealed class MonitorInputIntegrationTests
         Assert.AreEqual(1, InvokeMouse(hook, WM.WM_MOUSEMOVE, new Point(959, 450), 0));
         Assert.AreEqual(first, active.GetValue(null), "A large MOVE must stop before an offline or inactive intermediate PC, even when the final monitor has the original peer.");
         Assert.AreEqual(new Point(99, 50), point.GetValue(null));
+        WaitForInput(transport);
         var direct = new DATA(wire.ToArray());
         Assert.AreEqual(21626, direct.Md.X); // Native peer union [0,300).
         active.SetValue(null, first); point.SetValue(null, new Point(90, 50)); wire.SetLength(0);
         InvokeMouse(hook, WM.WM_MOUSEMOVE, new Point(820, 450), 0);
         InvokeMouse(hook, WM.WM_MOUSEMOVE, new Point(939, 450), 0);
+        WaitForInput(transport);
         Assert.AreEqual(first, active.GetValue(null)); Assert.AreEqual(new Point(99, 50), point.GetValue(null));
         var split = new DATA(wire.ToArray()[^Package.PACKAGE_SIZE..]);
         Assert.AreEqual(direct.Md.X, split.Md.X); Assert.AreEqual(direct.Md.Y, split.Md.Y);
@@ -352,9 +356,10 @@ public sealed class MonitorInputIntegrationTests
             : InvokeMouse(hook, WM.WM_LBUTTONDOWN, new Point(800, 450), 0);
         Assert.AreEqual(keyboard ? 1 : 0, result);
         Assert.AreEqual(keyboard ? (ID)303 : (ID)101, Common.DesMachineID);
+        WaitForInput(transport);
         Assert.AreEqual(keyboard ? (long)Package.PACKAGE_SIZE : 0L, wire.Length,
             "Mouse routing needs geometry; a keyboard-only connection must remain usable.");
-        if (keyboard) InvokeKeyboard(hook, 0x87, true);
+        if (keyboard) { InvokeKeyboard(hook, 0x87, true); WaitForInput(transport); }
     }
 
     [DataTestMethod]
@@ -424,6 +429,7 @@ public sealed class MonitorInputIntegrationTests
             InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.LControlKey, false);
             InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.RMenu, false, extended: true);
             InvokeMouse(hook, down, new Point(800, 450), button);
+            WaitForInput(transport);
             Assert.AreEqual(4L * Package.PACKAGE_SIZE, wire.Length);
             wire.SetLength(0); wire.Position = 0;
             lock (tcp)
@@ -459,7 +465,7 @@ public sealed class MonitorInputIntegrationTests
     [DataRow(false, false)]
     [DataRow(true, false)]
     [DataRow(false, true)]
-    public void DelayedEmergencyCleanupCannotReleaseAResumedOrRetiredOwnersInput(bool all, bool retired)
+    public void QueuedEmergencyCleanupPrecedesResumedInputAndCannotReachARetiredOwner(bool all, bool retired)
     {
         using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(1);
@@ -470,19 +476,27 @@ public sealed class MonitorInputIntegrationTests
         typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(tcp, wire);
         var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff)); transport.TcpSocketsLock = new object();
         typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, new List<TcpSk> { tcp }); Common.Sk = transport;
-        using var started = new ManualResetEventSlim(); Task cleanup;
         MachineStuff.desMachineID = (ID)101;
         lock (tcp)
         {
-            cleanup = Task.Run(() => { started.Set(); transport.ReleaseInput([
-                new DATA { Type = PackageType.Keyboard, Des = (ID)202, Kd = new KEYBDDATA { wVk = 'W', dwFlags = (int)WM.LLKHF.UP } },
-                new DATA { Type = PackageType.Mouse, Des = (ID)202, Md = new MOUSEDATA { dwFlags = WM.WM_RBUTTONUP } }]); });
-            Assert.IsTrue(started.Wait(TimeSpan.FromSeconds(2)));
+            using var scope = new InputHookDispatch(true);
+            Common.SkSend(new DATA { Type = PackageType.Keyboard, Des = (ID)202, Kd = new KEYBDDATA { wVk = 'W' } }, null, false);
+            transport.ReleaseInput((ID)202);
             if (retired) Common.Sk = null!;
-            else MachineStuff.desMachineID = all ? ID.ALL : (ID)202;
+            else
+            {
+                MachineStuff.desMachineID = all ? ID.ALL : (ID)202;
+                Common.SkSend(new DATA { Type = PackageType.Keyboard, Des = all ? ID.ALL : (ID)202, Kd = new KEYBDDATA { wVk = 'X' } }, null, false);
+            }
         }
-        Assert.IsTrue(cleanup.Wait(TimeSpan.FromSeconds(3)));
-        Assert.AreEqual(0L, wire.Length);
+        WaitForInput(transport);
+        if (retired) Assert.AreEqual(0L, wire.Length);
+        else
+        {
+            var keys = wire.ToArray().Chunk(32).Select(bytes => new DATA(bytes)).Where(frame => ((uint)frame.Type & 0xff) == (uint)PackageType.Keyboard).ToArray();
+            CollectionAssert.AreEqual(new[] { (int)'W', 'W', 'X' }, keys.Select(frame => frame.Kd.wVk).ToArray());
+            Assert.AreNotEqual(0, keys[1].Kd.dwFlags & (int)WM.LLKHF.UP, "Returning to the peer without W must still release its old W DOWN.");
+        }
     }
 
     [DataTestMethod]
@@ -524,6 +538,7 @@ public sealed class MonitorInputIntegrationTests
             }
             InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.LControlKey, false);
             InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.LMenu, false);
+            WaitForInput(transport);
             firstWire.SetLength(0); firstWire.Position = 0; secondWire.SetLength(0); secondWire.Position = 0;
             InvokeKeyboard(hook, (int)System.Windows.Forms.Keys.Back, false);
             Assert.IsTrue(SpinWait.SpinUntil(() => { lock (first) lock (second)
@@ -639,6 +654,8 @@ public sealed class MonitorInputIntegrationTests
         using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         socket.Connect(listener.LocalEndPoint!); using var accepted = listener.Accept();
         using var peer = new TcpSk(false, socket, SocketStatus.Connected, "B") { MachineId = 202 };
+        using var wire = new MemoryStream();
+        typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(peer, wire);
         var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff)); transport.TcpSocketsLock = new object();
         typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, new List<TcpSk> { peer }); Common.Sk = transport;
         var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
@@ -653,14 +670,18 @@ public sealed class MonitorInputIntegrationTests
             callback = Task.Run(() => InvokeKeyboard(hook, 0x87, true));
             Assert.IsTrue(await Task.WhenAny(callback, Task.Delay(400)) == callback,
                 "A stalled peer frame or inventory owner must not hold the real hook entrypoint until Windows removes it.");
-            Assert.AreEqual(0, await callback, "Failed remote delivery must return control to the local keyboard.");
-            Assert.AreEqual(Common.MachineID, Common.DesMachineID);
+            Assert.AreEqual(1, await callback, "Temporary contention must enqueue the remote input without disconnecting a healthy peer.");
+            Assert.AreEqual((ID)202, Common.DesMachineID);
+            Assert.AreSame(socket, peer.BackingSocket);
+            Assert.IsFalse(socket.SafeHandle.IsClosed);
         }
         finally { release.Set(); await holder; if (callback != null) await callback; }
+        Assert.IsTrue(SpinWait.SpinUntil(() => { lock (peer) return wire.Length == 32; }, TimeSpan.FromSeconds(3)),
+            "The original UP must reach the peer after contention ends.");
     }
 
     [TestMethod]
-    public async Task BroadcastAndRepeatedFramesShareOneHookBudgetEvenWithDuplicateConnections()
+    public async Task BroadcastQueuesEachLogicalPeerOnceWithoutWaitingForDuplicateFrameOwners()
     {
         var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff)); transport.TcpSocketsLock = new object();
         var peers = new List<TcpSk>(); var sockets = new List<Socket>(); var holders = new List<Task>();
@@ -674,46 +695,233 @@ public sealed class MonitorInputIntegrationTests
                 var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 socket.Connect(listener.LocalEndPoint!); sockets.Add(socket); sockets.Add(listener.Accept());
                 var peer = new TcpSk(i % 2 == 0, socket, SocketStatus.Connected, "B") { MachineId = 202 }; peers.Add(peer);
+                typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(peer, new MemoryStream());
                 holders.Add(Task.Factory.StartNew(() => { lock (peer) { entered.Signal(); release.Wait(); } }, TaskCreationOptions.LongRunning));
             }
             Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(3)));
             typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, peers); Common.Sk = transport;
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            using (new InputSendBudget(true))
+            using (new InputHookDispatch(true))
             {
                 Common.SkSend(new DATA { Type = PackageType.Keyboard, Des = ID.ALL, Kd = new() { wVk = 0x87 } }, null, false);
                 Common.SkSend(new DATA { Type = PackageType.Keyboard, Des = ID.ALL, Kd = new() { wVk = 0x87, dwFlags = (int)WM.LLKHF.UP } }, null, false);
             }
-            Assert.IsTrue(watch.Elapsed < TimeSpan.FromMilliseconds(400), "Broadcast duplicates and a second frame must not restart the 150ms hook budget.");
+            Assert.IsTrue(watch.Elapsed < TimeSpan.FromMilliseconds(100), "Broadcast enqueue must not wait for any peer frame owner.");
+            Assert.AreEqual(1, peers.Count(peer => peer.InputWriter != null), "Duplicate connections must share one selected recipient.");
         }
-        finally { release.Set(); await Task.WhenAll(holders); foreach (var socket in sockets) socket.Dispose(); foreach (var peer in peers) peer.Dispose(); }
+        finally { release.Set(); await Task.WhenAll(holders); WaitForInput(transport); foreach (var socket in sockets) socket.Dispose(); foreach (var peer in peers) peer.Dispose(); }
+    }
+
+    private sealed class FailedWriteStream : MemoryStream
+    {
+        public override void Write(byte[] buffer, int offset, int count) => throw new IOException("Synthetic peer write failure.");
     }
 
     [TestMethod]
-    public void AWriteThatIgnoresCancellationCannotHoldTheHookOrReuseItsPartialStream()
+    public void ABlockedWriterCannotDelayEitherHookOrAnotherPeerAndPacketsKeepTheirOriginalValues()
     {
-        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        using var release = new ManualResetEventSlim();
-        using var wire = new UnresponsiveWriteStream(release);
-        var watch = System.Diagnostics.Stopwatch.StartNew();
+        using var slow = new QueuedPeer(202); using var fast = new QueuedPeer(303);
+        using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
+        using var blockedWire = new GatedWriteStream(entered, release);
+        typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(slow.Peer, blockedWire);
+        var transport = QueueTransport(slow.Peer, fast.Peer);
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        hook.KeyboardEvent += Event.KeybdEvent; synthetic.KeyboardShortcutsEnabled = false;
         try
         {
-            using var budget = new InputSendBudget(true);
-            Assert.ThrowsException<MouseWithoutBorders.Exceptions.ExpectedSocketException>(() => InputSendBudget.Write(wire, socket, new byte[32]));
-            Assert.IsTrue(watch.Elapsed < TimeSpan.FromMilliseconds(400));
-            Assert.IsTrue(socket.SafeHandle.IsClosed, "An incomplete encrypted frame must retire the socket before returning.");
+            MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+            Assert.AreEqual(1, InvokeKeyboard(hook, 'W', false));
+            Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(3)));
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            Assert.AreEqual(1, InvokeKeyboard(hook, 'W', true));
+            MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)303;
+            Assert.AreEqual(1, InvokeKeyboard(hook, 'X', false));
+            Assert.IsTrue(watch.Elapsed < TimeSpan.FromMilliseconds(100), "The hook waited on the blocked network writer.");
+            Assert.IsTrue(SpinWait.SpinUntil(() => fast.Peer.InputWriter?.IsIdle == true, TimeSpan.FromSeconds(2)));
+            var delivered = new DATA(fast.Wire.ToArray());
+            Assert.AreEqual((ID)303, delivered.Des); Assert.AreEqual((int)'X', delivered.Kd.wVk);
+            Assert.AreEqual(0L, blockedWire.Length);
+            Assert.AreSame(slow.Socket, slow.Peer.BackingSocket, "A busy healthy connection must remain connected.");
         }
-        finally { release.Set(); }
-    }
-
-    private sealed class UnresponsiveWriteStream(ManualResetEventSlim release) : MemoryStream
-    {
-        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
-            => new(Task.Run(() => release.Wait()));
+        finally { release.Set(); WaitForInput(transport); }
+        var slowFrames = blockedWire.ToArray().Chunk(32).Select(bytes => new DATA(bytes)).ToArray();
+        CollectionAssert.AreEqual(new[] { (int)'W', 'W' }, slowFrames.Select(frame => frame.Kd.wVk).ToArray());
+        Assert.IsTrue(slowFrames.All(frame => frame.Des == (ID)202));
+        Assert.AreEqual(0, slowFrames[0].Kd.dwFlags & (int)WM.LLKHF.UP);
+        Assert.AreNotEqual(0, slowFrames[1].Kd.dwFlags & (int)WM.LLKHF.UP);
     }
 
     [TestMethod]
-    public async Task AFailedRemoteUpReleasesAppliedHoldsAndDiscardedFramesCannotTakeOwnership()
+    public void QueuedMovesCoalesceOnlyAtTheTailAndPreserveEveryInputBarrier()
+    {
+        using var peer = new QueuedPeer(202);
+        using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
+        using var wire = new GatedWriteStream(entered, release);
+        typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(peer.Peer, wire);
+        var transport = QueueTransport(peer.Peer);
+        void SendMouse(int message, int x) => Common.SkSend(new DATA { Type = PackageType.Mouse, Des = (ID)202,
+            Md = new() { dwFlags = message, X = x, Y = x, WheelDelta = message == WM.WM_MOUSEWHEEL ? 120 : 0 } }, null, false);
+        try
+        {
+            using var dispatch = new InputHookDispatch(true);
+            SendMouse(WM.WM_MOUSEMOVE, 1);
+            Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(3)));
+            SendMouse(WM.WM_MOUSEMOVE, 2); SendMouse(WM.WM_MOUSEMOVE, 3);
+            SendMouse(WM.WM_LBUTTONDOWN, 3);
+            SendMouse(WM.WM_MOUSEMOVE, 4); SendMouse(WM.WM_MOUSEMOVE, 5);
+            Common.SkSend(new DATA { Type = PackageType.Keyboard, Des = (ID)202, Kd = new() { wVk = 'W' } }, null, false);
+            SendMouse(WM.WM_MOUSEMOVE, 6); SendMouse(WM.WM_MOUSEWHEEL, 6);
+            SendMouse(WM.WM_MOUSEMOVE, -Event.MOVE_MOUSE_RELATIVE - 1);
+            SendMouse(WM.WM_MOUSEMOVE, -Event.MOVE_MOUSE_RELATIVE - 2);
+            SendMouse(WM.WM_LBUTTONUP, 6);
+        }
+        finally { release.Set(); WaitForInput(transport); }
+        var frames = wire.ToArray().Chunk(32).Select(bytes => new DATA(bytes)).ToArray();
+        CollectionAssert.AreEqual(new[] { 1, 3, 3, 5, 6, 6, -Event.MOVE_MOUSE_RELATIVE - 1, -Event.MOVE_MOUSE_RELATIVE - 2, 6 },
+            frames.Where(frame => ((uint)frame.Type & 0xff) == (uint)PackageType.Mouse).Select(frame => frame.Md.X).ToArray());
+        Assert.AreEqual((uint)PackageType.Keyboard, (uint)frames[4].Type & 0xff);
+        Assert.AreEqual(WM.WM_LBUTTONDOWN, frames[2].Md.dwFlags);
+        Assert.AreEqual(WM.WM_MOUSEWHEEL, frames[6].Md.dwFlags);
+        Assert.AreEqual(WM.WM_LBUTTONUP, frames[^1].Md.dwFlags);
+    }
+
+    [TestMethod]
+    public void QueueOverflowPassesTheFirstFailedPhysicalClickLocallyAndDoesNotRetireAnotherPeer()
+    {
+        using var slow = new QueuedPeer(202); using var fast = new QueuedPeer(303);
+        using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
+        using var wire = new GatedWriteStream(entered, release);
+        typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(slow.Peer, wire);
+        var transport = QueueTransport(slow.Peer, fast.Peer);
+        try
+        {
+            using (new InputHookDispatch(true))
+            {
+                Common.SkSend(new DATA { Type = PackageType.Keyboard, Des = (ID)202, Kd = new() { wVk = 'W' } }, null, false);
+                Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(3)));
+                for (int i = 0; i < PeerInputWriter.Capacity; i++)
+                    Common.SkSend(new DATA { Type = PackageType.Keyboard, Des = (ID)202, Kd = new() { wVk = 'W' } }, null, false);
+            }
+            var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+            hook.MouseEvent += Event.MouseEvent;
+            MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+            Assert.AreEqual(0, InvokeMouse(hook, WM.WM_LBUTTONDOWN, new Point(800, 450), 0), "A rejected DOWN must reach the local hook chain.");
+            Assert.AreEqual(Common.MachineID, Common.DesMachineID);
+            Assert.IsTrue(SpinWait.SpinUntil(() => slow.Socket.SafeHandle.IsClosed, TimeSpan.FromSeconds(2)));
+            Assert.IsFalse(fast.Socket.SafeHandle.IsClosed);
+        }
+        finally { release.Set(); WaitForInput(transport); }
+    }
+
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void OrdinaryPeerHandoffOrdersOwnedUpsBeforeHideAndPreservesAHealthyNewPeer(bool resumed)
+    {
+        using var slow = new QueuedPeer(202); using var fast = new QueuedPeer(303);
+        var transport = QueueTransport(slow.Peer, fast.Peer);
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
+        hook.KeyboardEvent += Event.KeybdEvent; synthetic.KeyboardShortcutsEnabled = false;
+        MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+        lock (slow.Peer)
+        {
+            InvokeKeyboard(hook, 'W', false);
+            MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)303;
+            Common.SendPackage((ID)202, PackageType.HideMouse); // Also ordered without a hook scope.
+            if (resumed)
+            {
+                MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+                InvokeKeyboard(hook, 'X', false);
+            }
+        }
+        WaitForInput(transport);
+        var frames = slow.Wire.ToArray().Chunk(32).Select(bytes => new DATA(bytes)).ToArray();
+        Assert.AreEqual((int)'W', frames[0].Kd.wVk);
+        Assert.AreEqual((int)'W', frames[1].Kd.wVk);
+        Assert.AreNotEqual(0, frames[1].Kd.dwFlags & (int)WM.LLKHF.UP, "Even immediate reentry without W must release the old hold.");
+        if (resumed) Assert.AreEqual((int)'X', frames[^1].Kd.wVk);
+        else Assert.AreEqual((uint)PackageType.HideMouse, (uint)frames[^1].Type & 0xff);
+
+        MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)303;
+        slow.Peer.InputWriter!.Stop();
+        Common.SendPackage((ID)202, PackageType.HideMouse);
+        Assert.AreEqual((ID)303, Common.DesMachineID, "A stale cleanup failure must not pull the healthy active peer back to local.");
+    }
+
+    [TestMethod]
+    public void APostedWriterFailureRechecksDestinationAndTransportOnTheInputThread()
+    {
+        using var peer = new QueuedPeer(202);
+        var transport = QueueTransport(peer.Peer);
+        var originalForm = Common.InputCallbackForm;
+        Exception? failure = null;
+        var thread = new System.Threading.Thread(() =>
+        {
+            try
+            {
+                using var form = new FrmInputCallback(); _ = form.Handle;
+                Common.InputCallbackForm = form; peer.Peer.Status = SocketStatus.SendError;
+                MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+                form.NotifyInputPeerFailure(transport, 202);
+                MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)303;
+                System.Windows.Forms.Application.DoEvents();
+                Assert.AreEqual((ID)303, Common.DesMachineID);
+                MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
+                form.NotifyInputPeerFailure(transport, 202);
+                Common.Sk = null!;
+                System.Windows.Forms.Application.DoEvents();
+                Assert.AreEqual((ID)202, Common.DesMachineID);
+                Common.Sk = transport; form.NotifyInputPeerFailure(transport, 202);
+                System.Windows.Forms.Application.DoEvents();
+                Assert.AreEqual(Common.MachineID, Common.DesMachineID);
+            }
+            catch (Exception error) { failure = error; }
+            finally { Common.InputCallbackForm = originalForm; }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(5))); Assert.IsNull(failure);
+    }
+
+    private static SocketStuff QueueTransport(params TcpSk[] peers)
+    {
+        var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff)); transport.TcpSocketsLock = new object();
+        typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, peers.ToList());
+        Common.Sk = transport;
+        return transport;
+    }
+
+    private sealed class QueuedPeer : IDisposable
+    {
+        internal Socket Socket { get; } = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        private readonly Socket accepted;
+        internal MemoryStream Wire { get; } = new();
+        internal TcpSk Peer { get; }
+        internal QueuedPeer(uint id)
+        {
+            using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(1);
+            Socket.Connect(listener.LocalEndPoint!); accepted = listener.Accept();
+            Peer = new TcpSk(false, Socket, SocketStatus.Connected, id == 202 ? "B" : "C") { MachineId = id };
+            typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(Peer, Wire);
+        }
+        public void Dispose() { Peer.Dispose(); Wire.Dispose(); Socket.Dispose(); accepted.Dispose(); }
+    }
+
+    private sealed class GatedWriteStream(ManualResetEventSlim entered, ManualResetEventSlim release) : MemoryStream
+    {
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            entered.Set();
+            if (!release.Wait(TimeSpan.FromSeconds(8))) throw new IOException("The test did not release its gated writer.");
+            base.Write(buffer, offset, count);
+        }
+    }
+
+    [DataTestMethod]
+    [DataRow(false, false)]
+    [DataRow(true, false)]
+    [DataRow(true, true)]
+    public async Task AFailedRemoteUpReleasesAppliedHoldsAndDiscardedFramesCannotTakeOwnership(bool siblingAlive, bool receiverRetirement)
     {
         using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         listener.Bind(new IPEndPoint(IPAddress.Loopback, 0)); listener.Listen(1);
@@ -721,11 +929,17 @@ public sealed class MonitorInputIntegrationTests
         socket.Connect(listener.LocalEndPoint!); using var accepted = listener.Accept();
         using var peer = new TcpSk(false, socket, SocketStatus.Connected, "B") { MachineId = 202 };
         using var other = new TcpSk(true, socket, SocketStatus.Connected, "B") { MachineId = 202 };
-        using var release = new ManualResetEventSlim(); using var wire = new UnresponsiveWriteStream(release);
+        using var wire = new FailedWriteStream();
         typeof(TcpSk).GetField("encryptedStream", InstanceFields)!.SetValue(peer, wire);
         var transport = (SocketStuff)RuntimeHelpers.GetUninitializedObject(typeof(SocketStuff)); transport.TcpSocketsLock = new object();
         typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, new List<TcpSk> { peer }); Common.Sk = transport;
-        var packet = new DATA { Type = PackageType.Keyboard, Src = (ID)202, Des = Common.MachineID, Id = 1900031, Kd = new() { wVk = 0x87 } };
+        using var sibling = new QueuedPeer(202);
+        if (siblingAlive)
+        {
+            transport.TcpSockets.Add(sibling.Peer); transport.PublishSocketSnapshot();
+        }
+        var packet = new DATA { Type = PackageType.Keyboard, Src = (ID)202, Des = Common.MachineID,
+            Id = Interlocked.Increment(ref failedRemotePacketId), Kd = new() { wVk = 0x87 } };
         var ledger = (System.Collections.IDictionary)typeof(InputSimulation).GetField("remoteHolds", StaticFields)!.GetValue(null)!;
         object? original = ledger[202u];
         ledger.Remove(202u);
@@ -736,23 +950,29 @@ public sealed class MonitorInputIntegrationTests
             var state = ledger[202u]!; var owner = state.GetType().GetField("Owner", InstanceFields)!;
             Receiver.ProcessPackage(packet, other); // Same processed ID, another connection.
             Assert.AreSame(peer, owner.GetValue(state), "Duplicate input must not advance ownership.");
-            Receiver.ProcessPackage(new DATA { Type = PackageType.Keyboard, Src = (ID)202, Des = (ID)303, Id = 1900032, Kd = new() { wVk = 0x87 } }, other);
+            Receiver.ProcessPackage(new DATA { Type = PackageType.Keyboard, Src = (ID)202, Des = (ID)303,
+                Id = Interlocked.Increment(ref failedRemotePacketId), Kd = new() { wVk = 0x87 } }, other);
             Assert.AreSame(peer, owner.GetValue(state), "Input for another destination must not advance ownership.");
             var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook)); GC.SuppressFinalize(hook);
             synthetic.KeyboardShortcutsEnabled = false; hook.KeyboardEvent += Event.KeybdEvent;
             MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)202;
-            Assert.AreEqual(0, InvokeKeyboard(hook, 0x87, true), "The timed-out actual hook must return to local control.");
+            if (receiverRetirement)
+                typeof(SocketStuff).GetMethod("UpdateTcpSockets", InstanceFields)!.Invoke(transport, [peer, SocketStatus.Error]);
+            else InvokeKeyboard(hook, 0x87, true);
             for (int i = 0; i < 60 && (NativeMethods.GetAsyncKeyState((IntPtr)0x87) & 0x8000) != 0; i++) await Task.Delay(25);
             Assert.IsFalse((NativeMethods.GetAsyncKeyState((IntPtr)0x87) & 0x8000) != 0,
                 "The actual failed transport path must release its previously applied remote DOWN.");
         }
         finally
         {
-            release.Set();
+            WaitForInput(transport);
             InputSimulation.SendKey(new() { wVk = 0x87, dwFlags = (int)WM.LLKHF.UP });
             ledger.Remove(202u); if (original != null) ledger[202u] = original;
         }
     }
+
+    private static void WaitForInput(SocketStuff transport) => Assert.IsTrue(SpinWait.SpinUntil(
+        () => transport.SocketSnapshot.All(peer => peer.InputWriter == null || peer.InputWriter.IsIdle), TimeSpan.FromSeconds(4)), "The input writers did not drain.");
 
     private static int InvokeKeyboard(InputHook hook, int key, bool up, bool ownInjected = false, bool extended = false, bool foreignInjected = false)
     {
@@ -977,6 +1197,7 @@ public sealed class MonitorInputIntegrationTests
         typeof(SocketStuff).GetProperty("TcpSockets", InstanceFields)!.SetValue(transport, new List<TcpSk> { peer });
         Common.Sk = transport; MachineStuff.desMachineID = (ID)202;
         Common.SendClipboardBeat();
+        WaitForInput(transport);
         Assert.AreEqual((long)Package.PACKAGE_SIZE_EX + Package.PACKAGE_SIZE, wire.Length, "The late copy must advertise before requesting the active PC to fetch it.");
         var bytes = wire.ToArray();
         var first = new DATA(bytes[..Package.PACKAGE_SIZE_EX]);

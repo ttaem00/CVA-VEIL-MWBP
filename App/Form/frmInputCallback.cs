@@ -84,6 +84,23 @@ namespace MouseWithoutBorders
             catch (InvalidOperationException) { Interlocked.Exchange(ref healthCheckPending, 0); }
         }
 
+        internal void NotifyInputPeerFailure(SocketStuff owner, uint peer)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try
+            {
+                BeginInvoke(() =>
+                {
+                    // Recheck on the hook thread: the user may already have
+                    // switched to another peer while the failed writer stopped.
+                    if (ReferenceEquals(Common.InputCallbackForm, this) && ReferenceEquals(Common.Sk, owner)
+                        && (uint)Common.DesMachineID == peer && !Common.IsConnectedTo((ID)peer))
+                        Event.ReturnToLocalControl(Common.LastPos);
+                });
+            }
+            catch (InvalidOperationException) { } // Closing/replacing this input desktop.
+        }
+
         protected override void WndProc(ref Message message)
         {
             if (message.Msg == 0x00ff && ReferenceEquals(Common.InputCallbackForm, this))

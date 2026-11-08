@@ -212,6 +212,7 @@ internal static class Event
         MousePackage.Md.X = (int)((long)(monitorPoint.X - targetDesktop.Left) * 65535 / targetDesktop.Width);
         MousePackage.Md.Y = (int)((long)(monitorPoint.Y - targetDesktop.Top) * 65535 / targetDesktop.Height);
         Common.SkSend(MousePackage, null, false);
+        if (Common.DesMachineID == Common.MachineID) return false;
         if (changedPeer) Common.HideMouseCursor(false);
         return true;
     }
@@ -281,7 +282,7 @@ internal static class Event
                 Common.DesMachineID = newDesMachineID;
                 // The previous peer must not hold up input to the new peer.
                 if (newDesMachineID != ID.ALL && previousMachine != Common.MachineID)
-                    _ = Task.Run(() => Common.SendPackage(previousMachine, PackageType.HideMouse));
+                    Common.SendPackage(previousMachine, PackageType.HideMouse);
 
                 Clipboard.OnMachineSwitched();
 
@@ -323,10 +324,6 @@ internal static class Event
                 KeybdPackage.Kd = e;
                 KeybdPackage.DateTime = Common.GetTick();
                 Common.SkSend(KeybdPackage, null, false);
-                if (KeybdPackage.Kd.dwFlags is WM.WM_KEYUP or WM.WM_SYSKEYUP)
-                {
-                    Thread.Sleep(10);
-                }
             }
         }
         catch (Exception ex)
