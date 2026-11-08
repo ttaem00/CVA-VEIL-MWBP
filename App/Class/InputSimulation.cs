@@ -130,6 +130,9 @@ namespace MouseWithoutBorders.Class
         }
 
         private static uint SendInputEx(NativeMethods.INPUT64 input)
+            => SendInputOnDesktop(input, ForegroundInputAccess.RequiresBroker());
+
+        private static uint SendInputOnDesktop(NativeMethods.INPUT64 input, bool protectedForeground)
         {
             Common.PaintCount = 0;
 
@@ -138,19 +141,19 @@ namespace MouseWithoutBorders.Class
             // Native movement does not change held input; a broker round trip must not delay it.
             bool movementOnly = input.type == 0 && (input.mi.dwFlags & (int)NativeMethods.MOUSEEVENTF.MOVE) != 0
                 && (input.mi.dwFlags & ~(int)(NativeMethods.MOUSEEVENTF.MOVE | NativeMethods.MOUSEEVENTF.ABSOLUTE | NativeMethods.MOUSEEVENTF.VIRTUALDESK)) == 0;
-            uint sent = movementOnly ? SendNativeInput(input) : 0;
+            uint sent = movementOnly && !protectedForeground ? SendNativeInput(input) : 0;
             if (sent != 0) return sent;
 
             Common.DoSomethingInTheInputSimulationThread(() =>
             {
                 try
                 {
-                if (!movementOnly)
+                if (protectedForeground || !movementOnly)
                 {
-                    if (PrivilegedInput.HasHeldInput)
+                    if (protectedForeground || PrivilegedInput.HasHeldInput)
                     {
                         if (PrivilegedInput.TrySend(input, out sent)) return;
-                        if (PrivilegedInput.HasHeldInput) return;
+                        if (protectedForeground || PrivilegedInput.HasHeldInput) return;
                     }
                     sent = SendNativeInput(input);
                 }

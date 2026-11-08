@@ -139,7 +139,7 @@ internal static class PrivilegedInput
         return true;
     }
 
-    // Called inside the existing InputSimulationLock, after native SendInput returned zero.
+    // Called inside InputSimulationLock for protected foregrounds, held ownership or native rejection.
     internal static bool TrySend(NativeMethods.INPUT64 input, out uint sent)
     {
         sent = 0;

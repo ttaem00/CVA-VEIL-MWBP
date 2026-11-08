@@ -40,6 +40,21 @@ public sealed class PrivilegedInputTests
     private static uint Exchange(NativeMethods.INPUT64 input) => (uint)typeof(PrivilegedInput).GetMethod("ExchangeInput", Private)!.Invoke(null, [input])!;
 
     [TestMethod]
+    public void ProtectedForegroundNeverFallsBackToNativeWhenTheBrokerIsUnavailable()
+    {
+        // The test runner is not the protected installed executable, so TrySend must reject it.
+        Assert.IsFalse(PrivilegedInput.IsProtectedCopy);
+        var progress = typeof(InputSimulation).GetField("nativeProgress", Private)!.GetValue(null)!;
+        var started = progress.GetType().GetField("started", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        long before = (long)started.GetValue(progress)!;
+        NativeMethods.INPUT64 input = default;
+        input.mi.dwFlags = (int)NativeMethods.MOUSEEVENTF.MOVE; // Zero delta; never changes held state.
+        var route = typeof(InputSimulation).GetMethod("SendInputOnDesktop", Private)!;
+        Assert.AreEqual(0u, (uint)route.Invoke(null, [input, true])!);
+        Assert.AreEqual(before, (long)started.GetValue(progress)!, "A native insertion cannot substitute for delivery to a higher-integrity foreground.");
+    }
+
+    [TestMethod]
     public void NativeWatchdogDistinguishesStalledCallsFromOngoingInputAndQuiescence()
     {
         var progress = new InputSimulation.NativeInputProgress();
