@@ -17,11 +17,14 @@ public sealed class PrivilegedInputTests
 {
     private Dictionary<long, NativeMethods.INPUT64> originalDebt = null!;
     private object? originalNeedsDrain, originalRecovering;
+    private HashSet<string> originalFailures = null!;
+    private static HashSet<string> ReportedFailures => (HashSet<string>)Field("reportedFailures").GetValue(null)!;
     private static Dictionary<long, NativeMethods.INPUT64> ClientDebt => (Dictionary<long, NativeMethods.INPUT64>)Field("clientHeldInput").GetValue(null)!;
     [TestInitialize]
     public void SaveDebt()
     {
         originalDebt = new(ClientDebt); ClientDebt.Clear();
+        originalFailures = new(ReportedFailures); ReportedFailures.Clear();
         originalNeedsDrain = Field("clientNeedsDrain").GetValue(null); originalRecovering = Field("recoveringInput").GetValue(null);
         Field("clientNeedsDrain").SetValue(null, false); Field("recoveringInput").SetValue(null, false);
     }
@@ -29,11 +32,102 @@ public sealed class PrivilegedInputTests
     public void RestoreDebt()
     {
         ClientDebt.Clear(); foreach (var entry in originalDebt) ClientDebt.Add(entry.Key, entry.Value);
+        ReportedFailures.Clear(); ReportedFailures.UnionWith(originalFailures);
         Field("clientNeedsDrain").SetValue(null, originalNeedsDrain); Field("recoveringInput").SetValue(null, originalRecovering);
     }
     private static readonly BindingFlags Private = BindingFlags.Static | BindingFlags.NonPublic;
     private static FieldInfo Field(string name) => typeof(PrivilegedInput).GetField(name, Private)!;
     private static uint Exchange(NativeMethods.INPUT64 input) => (uint)typeof(PrivilegedInput).GetMethod("ExchangeInput", Private)!.Invoke(null, [input])!;
+
+    [TestMethod]
+    public void NativeWatchdogDistinguishesStalledCallsFromOngoingInputAndQuiescence()
+    {
+        var progress = new InputSimulation.NativeInputProgress();
+        Assert.IsFalse(progress.ObserveStall());
+        progress.Enter(); Assert.IsFalse(progress.ObserveStall());
+        progress.Exit(); progress.Enter(); Assert.IsFalse(progress.ObserveStall(), "Ongoing input completions are progress.");
+        Assert.IsTrue(progress.ObserveStall()); Assert.IsFalse(progress.ObserveStall(), "A stall is reported once.");
+        progress.Exit(); Assert.IsFalse(progress.ObserveStall()); Assert.IsFalse(progress.ObserveStall(), "An idle receiver is healthy.");
+        progress.Enter(); Assert.IsFalse(progress.ObserveStall()); Assert.IsTrue(progress.ObserveStall(), "A later independent stall must remain observable."); progress.Exit();
+    }
+
+    [DataTestMethod]
+    [DataRow(1, 5)]
+    [DataRow(2, 170)]
+    [DataRow(3, 0)]
+    [DataRow(4, 6)]
+    public void BrokerReplyPreservesFailureAndHeldOwnership(int stage, int error)
+    {
+        byte[] reply = new byte[PrivilegedInput.ReplySize];
+        var failure = new PrivilegedInput.InjectionFailure((PrivilegedInput.InjectionStage)stage, error);
+        PrivilegedInput.WriteReply(reply, 0, 37, failure);
+        Assert.AreEqual(74u, BinaryPrimitives.ReadUInt32LittleEndian(reply));
+        Assert.AreEqual(failure, PrivilegedInput.ReadFailure(reply));
+        PrivilegedInput.WriteReply(reply, 1, 0, default);
+        Assert.AreEqual(1u, BinaryPrimitives.ReadUInt32LittleEndian(reply));
+        Assert.AreEqual(default(PrivilegedInput.InjectionFailure), PrivilegedInput.ReadFailure(reply), "A successful reply must clear the prior native failure.");
+    }
+
+    [TestMethod]
+    public async Task ARejectedBrokerInputCarriesItsNativeFailureWithoutManufacturingAHold()
+    {
+        object? oldPipe = Field("inputPipe").GetValue(null), oldOwns = Field("brokerOwnsInput").GetValue(null);
+        string name = "mwb-rejection-diagnostic-" + Guid.NewGuid().ToString("N");
+        using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
+        var connected = server.WaitForConnectionAsync();
+        await client.ConnectAsync(1000); await connected;
+        var worker = Task.Run(async () =>
+        {
+            await server.ReadExactlyAsync(new byte[Marshal.SizeOf<NativeMethods.INPUT64>()]);
+            byte[] reply = new byte[PrivilegedInput.ReplySize];
+            PrivilegedInput.WriteReply(reply, 0, 0, new(PrivilegedInput.InjectionStage.AttachDesktop, 170));
+            // An overlapped pipe read may split the status from its diagnostic fields.
+            await server.WriteAsync(reply.AsMemory(0, 4));
+            await server.WriteAsync(reply.AsMemory(4));
+        });
+        try
+        {
+            Field("inputPipe").SetValue(null, client); Field("brokerOwnsInput").SetValue(null, false);
+            NativeMethods.INPUT64 input = default; input.type = 1; input.ki.wVk = 0x87;
+            Assert.AreEqual(0u, Exchange(input)); await worker;
+            Assert.AreEqual(0, ClientDebt.Count); Assert.IsFalse(PrivilegedInput.HasHeldInput);
+            Assert.AreEqual(true, Field("recoveringInput").GetValue(null), "A live worker rejecting injection is a failure, even without an exception.");
+        }
+        finally { Field("inputPipe").SetValue(null, oldPipe); Field("brokerOwnsInput").SetValue(null, oldOwns); }
+    }
+
+    [TestMethod]
+    public async Task ANewInjectionFailureIsLoggedOnceEvenWhenAlreadyRecovering()
+    {
+        object? oldPipe = Field("inputPipe").GetValue(null), oldOwns = Field("brokerOwnsInput").GetValue(null);
+        string name = "mwb-failure-stages-" + Guid.NewGuid().ToString("N");
+        using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
+        var connected = server.WaitForConnectionAsync(); await client.ConnectAsync(1000); await connected;
+        int Logged(PrivilegedInput.InjectionStage stage) => ((string[])typeof(Logger).GetField("AllLogs", Private)!.GetValue(null)!)
+            .Count(line => line?.Contains("Protected input rejected: stage=" + stage + ";", StringComparison.Ordinal) == true);
+        int beforeOpen = Logged(PrivilegedInput.InjectionStage.OpenDesktop), beforeAttach = Logged(PrivilegedInput.InjectionStage.AttachDesktop);
+        var worker = Task.Run(async () =>
+        {
+            foreach (var stage in new[] { PrivilegedInput.InjectionStage.OpenDesktop, PrivilegedInput.InjectionStage.OpenDesktop, PrivilegedInput.InjectionStage.AttachDesktop, PrivilegedInput.InjectionStage.AttachDesktop })
+            {
+                await server.ReadExactlyAsync(new byte[Marshal.SizeOf<NativeMethods.INPUT64>()]);
+                byte[] reply = new byte[PrivilegedInput.ReplySize];
+                PrivilegedInput.WriteReply(reply, 0, 0, new(stage, 5)); await server.WriteAsync(reply);
+            }
+        });
+        try
+        {
+            Field("inputPipe").SetValue(null, client); Field("brokerOwnsInput").SetValue(null, false);
+            Field("recoveringInput").SetValue(null, true); // A startup connection failure must not hide later injection evidence.
+            for (int i = 0; i < 4; i++) Assert.AreEqual(0u, Exchange(default));
+            await worker;
+            Assert.AreEqual(beforeOpen + 1, Logged(PrivilegedInput.InjectionStage.OpenDesktop));
+            Assert.AreEqual(beforeAttach + 1, Logged(PrivilegedInput.InjectionStage.AttachDesktop));
+        }
+        finally { Field("inputPipe").SetValue(null, oldPipe); Field("brokerOwnsInput").SetValue(null, oldOwns); }
+    }
 
     [DataTestMethod]
     [DataRow(false)]
@@ -169,7 +263,7 @@ public sealed class PrivilegedInputTests
         await client.ConnectAsync(1000); await connected;
         var serve = Task.Run(async () =>
         {
-            byte[] bytes = new byte[Marshal.SizeOf<NativeMethods.INPUT64>()], reply = new byte[4];
+            byte[] bytes = new byte[Marshal.SizeOf<NativeMethods.INPUT64>()], reply = new byte[PrivilegedInput.ReplySize];
             for (int i = 0; i < 2; i++)
             {
                 await server.ReadExactlyAsync(bytes);
@@ -284,7 +378,7 @@ public sealed class PrivilegedInputTests
                     Assert.AreEqual((int)(NativeMethods.KEYEVENTF.KEYUP | NativeMethods.KEYEVENTF.EXTENDEDKEY), release.ki.dwFlags);
                 }
                 else { Assert.AreEqual(mouseFlag == 128 ? 256 : mouseFlag * 2, release.mi.dwFlags); Assert.AreEqual(mouseData, release.mi.mouseData); }
-                await replacement.WriteAsync(new byte[] { 1, 0, 0, 0 });
+                await replacement.WriteAsync(new byte[] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
             });
             Assert.IsTrue((bool)typeof(PrivilegedInput).GetMethod("DrainClientHeldInput", Private)!.Invoke(null, null)!);
             await worker; Assert.AreEqual(0, ClientDebt.Count); Assert.IsFalse(PrivilegedInput.HasHeldInput);
@@ -300,7 +394,7 @@ public sealed class PrivilegedInputTests
         using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
         using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
         var connected = server.WaitForConnectionAsync(); await client.ConnectAsync(1000); await connected;
-        var worker = Task.Run(async () => { await server.ReadExactlyAsync(new byte[Marshal.SizeOf<NativeMethods.INPUT64>()]); await server.WriteAsync(new byte[4]); });
+        var worker = Task.Run(async () => { await server.ReadExactlyAsync(new byte[Marshal.SizeOf<NativeMethods.INPUT64>()]); await server.WriteAsync(new byte[PrivilegedInput.ReplySize]); });
         try
         {
             Field("inputPipe").SetValue(null, client); Field("brokerOwnsInput").SetValue(null, false);
@@ -327,7 +421,7 @@ public sealed class PrivilegedInputTests
                 var bytes = new byte[Marshal.SizeOf<NativeMethods.INPUT64>()]; await server.ReadExactlyAsync(bytes);
                 var release = MemoryMarshal.Read<NativeMethods.INPUT64>(bytes); seen.Add(release.ki.wVk);
                 Assert.AreNotEqual(0, release.ki.dwFlags & (int)NativeMethods.KEYEVENTF.KEYUP);
-                await server.WriteAsync(new byte[] { count, 0, 0, 0 });
+                await server.WriteAsync(new byte[] { count, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
             }
         });
         try
@@ -377,7 +471,7 @@ public sealed class PrivilegedInputTests
         await client.ConnectAsync(1000); await connected;
         var serve = Task.Run(async () =>
         {
-            byte[] bytes = new byte[Marshal.SizeOf<NativeMethods.INPUT64>()], reply = new byte[4];
+            byte[] bytes = new byte[Marshal.SizeOf<NativeMethods.INPUT64>()], reply = new byte[PrivilegedInput.ReplySize];
             await server.ReadExactlyAsync(bytes);
             BinaryPrimitives.WriteUInt32LittleEndian(reply, 3u);
             await server.WriteAsync(reply);

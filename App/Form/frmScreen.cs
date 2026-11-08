@@ -381,6 +381,7 @@ namespace MouseWithoutBorders
         private void HelperTimer_Tick(object sender, EventArgs e)
         {
             Helper.WndProcCounter++;
+            InputSimulation.CheckNativeInputProgress();
 
             if (busy)
             {

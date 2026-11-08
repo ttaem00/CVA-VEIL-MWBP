@@ -47,7 +47,11 @@ internal static class PrivilegedInput
     internal static string ProtectedDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "MouseWithoutBordersPlus");
     internal static string ProtectedExecutable => Path.Combine(ProtectedDirectory, "MouseWithoutBordersPlus.exe");
     private static string Executable => Environment.ProcessPath ?? throw new IOException("The application executable is unavailable.");
-    private static string PipeName(int session) => "MouseWithoutBordersPlus/Input/" + session;
+    // Reply v2 adds failure metadata; never interpret a v1 worker's held-input reply as v2.
+    private static string PipeName(int session) => "MouseWithoutBordersPlus/Input/v2/" + session;
+    internal const int ReplySize = 12;
+    internal enum InjectionStage : uint { None, OpenDesktop, AttachDesktop, SendInput, RestoreDesktop }
+    internal readonly record struct InjectionFailure(InjectionStage Stage, int Error);
     internal static bool IsProtectedCopy => Path.GetFullPath(Executable).Equals(ProtectedExecutable, StringComparison.OrdinalIgnoreCase);
     private static NamedPipeClientStream inputPipe;
     private static SafeProcessHandle inputAgent;
@@ -56,6 +60,8 @@ internal static class PrivilegedInput
     // independently of the worker process so replacing that worker cannot lose it.
     private static readonly Dictionary<long, NativeMethods.INPUT64> clientHeldInput = new();
     private static bool recoveringInput;
+    private static readonly HashSet<string> reportedFailures = new();
+    private static InjectionFailure lastRestoreFailure;
     private static bool clientNeedsDrain;
     internal static bool HasHeldInput
     {
@@ -139,28 +145,35 @@ internal static class PrivilegedInput
         sent = 0;
         if (!IsProtectedCopy) return false;
         DiscardExitedAgent();
+        string phase = "policy";
         try
         {
             // A revoked policy blocks new ownership, while already-owned input can still drain.
             if (!brokerOwnsInput && Setting.Values.AllowServiceModeIsGpoConfigured) return false;
             if (inputPipe == null)
             {
+                phase = "connect";
                 inputPipe = new NamedPipeClientStream(".", PipeName(Process.GetCurrentProcess().SessionId), PipeDirection.InOut, PipeOptions.Asynchronous);
                 inputPipe.Connect(0);
+                phase = "owner verification";
                 var owner = inputPipe.GetAccessControl().GetOwner(typeof(SecurityIdentifier));
                 if (!Equals(owner, new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null)))
                     throw new UnauthorizedAccessException("The input endpoint is not owned by SYSTEM.");
+                phase = "process verification";
                 if (!GetNamedPipeServerProcessId(inputPipe.SafePipeHandle, out uint server)) throw new Win32Exception();
                 var verified = VerifyExecutable((int)server, Process.GetCurrentProcess().SessionId);
                 inputAgent?.Dispose(); inputAgent = verified;
                 clientNeedsDrain |= clientHeldInput.Count != 0;
             }
+            phase = "owned release drain";
             if (!DrainReconnectedInput()) return true;
             if (!brokerOwnsInput && Setting.Values.AllowServiceModeIsGpoConfigured) return false;
+            phase = "input exchange";
             sent = ExchangeInput(input);
             if (sent != 0 && recoveringInput)
             {
                 recoveringInput = false;
+                reportedFailures.Clear();
                 Logger.Log("Protected input recovered: worker reply received after owned releases.");
             }
             return true;
@@ -169,8 +182,8 @@ internal static class PrivilegedInput
         {
             inputPipe?.Dispose(); inputPipe = null;
             clientNeedsDrain |= clientHeldInput.Count != 0;
-            if (!recoveringInput)
-                Logger.Log($"Protected input interrupted: {error.GetType().Name}; pending owned releases = {clientHeldInput.Count}.");
+            if (reportedFailures.Add($"{phase}:{error.HResult}"))
+                Logger.Log($"Protected input interrupted: phase={phase}; {error.GetType().Name}; HRESULT=0x{error.HResult:X8}; Win32={(error is Win32Exception native ? native.NativeErrorCode : 0)}; pending owned releases={clientHeldInput.Count}.");
             recoveringInput = true;
             return false;
         }
@@ -206,9 +219,10 @@ internal static class PrivilegedInput
         // A failed MOVE/UP with no previous DOWN cannot manufacture a held key.
         brokerOwnsInput |= clientHeldInput.Count != 0;
         inputPipe.WriteAsync(data, 0, data.Length, deadline.Token).GetAwaiter().GetResult();
-        byte[] reply = new byte[sizeof(uint)];
+        byte[] reply = new byte[ReplySize];
         inputPipe.ReadExactlyAsync(reply, deadline.Token).AsTask().GetAwaiter().GetResult();
         uint status = BinaryPrimitives.ReadUInt32LittleEndian(reply);
+        var failure = ReadFailure(reply);
         uint count = status & 1;
         if (count != 0) TrackHeldInput(clientHeldInput, input);
         else if (beforeDown != null)
@@ -218,7 +232,31 @@ internal static class PrivilegedInput
         }
         if (!draining && (status >> 1) == 0) clientHeldInput.Clear();
         brokerOwnsInput = (status >> 1) != 0 || clientHeldInput.Count != 0;
+        if (count == 0)
+        {
+            if (reportedFailures.Add($"inject:{failure.Stage}:{failure.Error}"))
+                Logger.Log($"Protected input rejected: stage={failure.Stage}; Win32={failure.Error}; pending owned releases={clientHeldInput.Count}.");
+            recoveringInput = true;
+        }
+        else if (failure.Stage == InjectionStage.RestoreDesktop)
+        {
+            if (failure != lastRestoreFailure)
+                Logger.Log($"Protected input desktop restore failed: Win32={failure.Error}; input was applied.");
+            lastRestoreFailure = failure;
+        }
+        else lastRestoreFailure = default;
         return count;
+    }
+
+    internal static InjectionFailure ReadFailure(ReadOnlySpan<byte> reply) => new(
+        (InjectionStage)BinaryPrimitives.ReadUInt32LittleEndian(reply.Slice(4)),
+        BinaryPrimitives.ReadInt32LittleEndian(reply.Slice(8)));
+
+    internal static void WriteReply(Span<byte> reply, uint count, int held, InjectionFailure failure)
+    {
+        BinaryPrimitives.WriteUInt32LittleEndian(reply, count | ((uint)held << 1));
+        BinaryPrimitives.WriteUInt32LittleEndian(reply.Slice(4), (uint)failure.Stage);
+        BinaryPrimitives.WriteInt32LittleEndian(reply.Slice(8), failure.Error);
     }
 
     private static SafeProcessHandle VerifyExecutable(int processId, int session)
@@ -270,10 +308,23 @@ internal static class PrivilegedInput
         NamedPipeServerStream server = null;
         var registered = ThreadPool.RegisterWaitForSingleObject(stop, (_, _) => Volatile.Read(ref server)?.Dispose(), null, Timeout.Infinite, true);
         byte[] bytes = new byte[Marshal.SizeOf<NativeMethods.INPUT64>()];
-        byte[] reply = new byte[sizeof(uint)];
+        byte[] reply = new byte[ReplySize];
         var held = new Dictionary<long, NativeMethods.INPUT64>();
         var injectionDeadline = new InjectionDeadline(TimeSpan.FromSeconds(2), () => Environment.Exit(1));
-        uint GuardedInject(NativeMethods.INPUT64 input) => injectionDeadline.Run(() => Inject(input));
+        InjectionFailure failure = default;
+        uint GuardedInject(NativeMethods.INPUT64 input) => injectionDeadline.Run(() => InjectWithFailure(input, out failure));
+        bool ReleaseAgentInput()
+        {
+            InjectionFailure firstFailure = default;
+            bool released = ReleaseHeldInput(held, input =>
+            {
+                uint count = GuardedInject(input);
+                if (count == 0 && firstFailure.Stage == InjectionStage.None) firstFailure = failure;
+                return count;
+            });
+            if (!released) failure = firstFailure;
+            return released;
+        }
         try
         {
             while (!stop.WaitOne(0))
@@ -292,19 +343,20 @@ internal static class PrivilegedInput
                         var input = MemoryMarshal.Read<NativeMethods.INPUT64>(bytes);
                         if (input.type is not (0 or 1)) throw new InvalidDataException("Only keyboard and mouse input is supported.");
                         if (recoveringPreviousConnection)
-                            recoveringPreviousConnection = !ReleaseHeldInput(held, GuardedInject);
+                            recoveringPreviousConnection = !ReleaseAgentInput();
                         uint count = recoveringPreviousConnection ? 0 : GuardedInject(input);
-                        if (count == 0 && !recoveringPreviousConnection && IsOwnedRelease(held, input)) break;
+                        bool releaseFailed = count == 0 && !recoveringPreviousConnection && IsOwnedRelease(held, input);
                         if (count != 0) TrackHeldInput(held, input);
-                        BinaryPrimitives.WriteUInt32LittleEndian(reply, count | ((uint)held.Count << 1));
+                        WriteReply(reply, count, held.Count, failure);
                         connection.Write(reply);
+                        if (releaseFailed) break;
                     }
                 }
                 catch (Exception error) when (error is IOException or ObjectDisposedException or UnauthorizedAccessException or Win32Exception or InvalidOperationException or ArgumentException) { }
                 finally
                 {
                     // Release only inputs owned by this connection, including an interrupted drag.
-                    ReleaseHeldInput(held, GuardedInject);
+                    ReleaseAgentInput();
                 }
             }
         }
@@ -397,19 +449,29 @@ internal static class PrivilegedInput
         return false;
     }
 
-    private static uint Inject(NativeMethods.INPUT64 input)
+    private static uint Inject(NativeMethods.INPUT64 input) => InjectWithFailure(input, out _);
+
+    private static uint InjectWithFailure(NativeMethods.INPUT64 input, out InjectionFailure failure)
     {
+        failure = default;
         IntPtr original = NativeMethods.GetThreadDesktop(NativeMethods.GetCurrentThreadId());
         IntPtr desktop = NativeMethods.OpenInputDesktop(0, false, NativeMethods.DESKTOP_READOBJECTS | NativeMethods.DESKTOP_WRITEOBJECTS | DesktopJournalPlayback);
-        if (desktop == IntPtr.Zero) return 0;
+        if (desktop == IntPtr.Zero) { failure = new(InjectionStage.OpenDesktop, Marshal.GetLastWin32Error()); return 0; }
         try
         {
-            if (!SetThreadDesktop(desktop)) return 0;
+            if (!SetThreadDesktop(desktop)) { failure = new(InjectionStage.AttachDesktop, Marshal.GetLastWin32Error()); return 0; }
             if (input.type == 0) input.mi.dwExtraInfo = InputSimulation.InjectedInputTag;
             else input.ki.dwExtraInfo = InputSimulation.InjectedInputTag;
-            return NativeMethods.SendInput64(1, [input], Marshal.SizeOf(input));
+            uint count = NativeMethods.SendInput64(1, [input], Marshal.SizeOf(input));
+            if (count == 0) failure = new(InjectionStage.SendInput, Marshal.GetLastWin32Error());
+            return count;
         }
-        finally { SetThreadDesktop(original); CloseDesktop(desktop); }
+        finally
+        {
+            if (!SetThreadDesktop(original) && failure.Stage == InjectionStage.None)
+                failure = new(InjectionStage.RestoreDesktop, Marshal.GetLastWin32Error());
+            CloseDesktop(desktop);
+        }
     }
 
     private sealed class InputService : ServiceBase
