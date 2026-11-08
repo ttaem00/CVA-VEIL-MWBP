@@ -26,7 +26,7 @@
 - **전환은 내 손에 맞게.** PC를 바꾸거나 가장자리로 넘어갈 때 쓸 키를 직접 정하세요.
 - **파일은 필요한 PC로.** 복사한 내용을 함께 쓰고, 파일을 보낼 PC를 고르세요. 중단된 전송도 이어 보낼 수 있습니다.
 
-[더 자세한 도움말](https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/#help) · [문제 제보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/issues)
+[더 자세한 도움말](https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/#help) · [문제 제보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/issues) · [개인정보처리방침](https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/privacy.html) · [Code signing policy](https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/code-signing-policy.html)
 
 ## 자주 묻는 질문
 

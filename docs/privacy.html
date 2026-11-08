@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>개인정보처리방침 · VEIL MWBP</title>
+  <meta name="description" content="MWBP의 PC 간 공유, 로컬 설정과 전송 기록, 진단 로그, 업데이트 확인 및 삭제 범위 안내.">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="assets/veil.ico">
+  <style>
+    .policy { width: min(48rem, calc(100% - 2rem)); margin: 2rem auto 4rem; }
+    .policy h1 { margin-top: 2rem; font-size: clamp(2rem, 6vw, 3rem); }
+    .policy h2 { margin-top: 2rem; font-size: 1.4rem; }
+    .policy p { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+  <main id="main" class="policy" tabindex="-1">
+    <a href="./">VEIL MWBP 소개로 돌아가기</a>
+    <h1>MWBP 개인정보처리방침</h1>
+    <p>시행일: 2026년 11월 9일 · 대상: VEIL MWBP Windows 앱</p>
+
+    <h2>처리 목적과 정보</h2>
+    <p>MWBP는 사용자가 연결한 Windows PC 사이에서 마우스·키보드 입력, 클립보드와 파일을 공유합니다. PC 연결과 화면 배치를 위해 컴퓨터 이름, 네트워크 주소, 포트, 장치 식별 정보, 연결키와 공유 설정을 처리합니다.</p>
+    <p>PC 찾기는 같은 네트워크에 컴퓨터 이름과 연결 포트를 알리므로 연결 승인 전에도 같은 네트워크의 장치가 이 정보를 받을 수 있습니다. 연결한 PC 사이에는 기능 사용에 필요한 입력 이벤트, 클립보드 텍스트·이미지, 공유한 파일과 관련 정보가 전달됩니다. 클립보드·파일 공유가 켜져 있으면 복사한 내용이나 파일이 연결된 PC로 전달될 수 있습니다.</p>
+
+    <h2>PC에 저장하는 정보</h2>
+    <p>연결 설정, 모니터 배치, 단축키와 수신 폴더 등의 설정은 로컬 설정 파일에 저장됩니다. 설치형은 일반적으로 현재 Windows 사용자의 로컬 앱 데이터 폴더를 사용하고, 포터블 경로는 실행 파일 옆의 설정 파일을 사용할 수 있습니다. 설정과 백업에는 연결키가 포함됩니다. 설정 파일이나 백업을 다른 사람에게 공유하지 마세요.</p>
+    <p>보호 입력 서비스는 서비스 사용자를 제한하기 위해 허용된 Windows 사용자의 SID를 해당 PC의 서비스 설정에 보관합니다.</p>
+    <p>파일 전송의 상태 확인과 중단된 전송 재개를 위해 파일명, 상대 PC, 원본·수신 경로, 크기, 해시, 시각, 진행 상태와 오류 등의 기록을 로컬 파일에 보관합니다. 수신한 파일은 사용자가 지정한 수신 위치에 남습니다.</p>
+    <p>문제 진단을 위해 PC의 임시 폴더에 상태·오류 로그도 기록하며, 장치명, IP 주소, 파일명이나 경로가 포함될 수 있습니다. 로그는 크기 제한에 따라 이전 로그 파일로 교체됩니다.</p>
+
+    <h2>외부 서비스</h2>
+    <p>현재 버전은 PowerToys 사용 분석 이벤트를 전송하는 기능을 비활성 구현으로 대체했습니다. 정보 화면에서 업데이트 확인을 누르면 GitHub Releases API에 현재 앱 버전을 포함한 HTTPS 요청을 보냅니다. 업데이트나 지원 링크를 열면 기본 브라우저가 해당 사이트에 접속합니다.</p>
+    <p>GitHub, Microsoft Store, Windows와 브라우저가 처리하는 정보에는 해당 서비스의 개인정보처리방침이 적용됩니다. <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub 개인정보처리방침</a> · <a href="https://privacy.microsoft.com/privacystatement">Microsoft 개인정보처리방침</a></p>
+
+    <h2>공유 제어와 보관·삭제</h2>
+    <p>설정에서 클립보드·파일 공유를 끄고 수신 폴더를 변경할 수 있습니다. 전송 창에서는 전송을 일시정지·취소하고 완료 항목을 화면에서 지울 수 있습니다. 완료 항목을 지워도 중복 전송을 막기 위한 최소 확인 기록이 잠시 남을 수 있으며, 앱 유지보수 과정에서 1일이 지난 확인 기록 등을 정리합니다. 앱이 종료되어 있으면 유지보수는 실행되지 않습니다.</p>
+    <p>일반 전송 기록과 설정은 필요한 동안 로컬에 남을 수 있고, 복구용 백업·손상 복구 사본·이미 받은 파일은 별도로 남을 수 있습니다.</p>
+    <p>제거 과정에서 연결과 설정을 삭제할지 선택할 수 있습니다. 이 선택이 전송 기록, 로그, 복구용 사본이나 수신 파일까지 모두 삭제하는 것은 아닙니다. 남은 로컬 파일은 앱을 종료하고 필요한 수신 파일과 복구 자료를 확인한 뒤 사용자가 삭제할 수 있습니다.</p>
+
+    <h2>문의</h2>
+    <p>문의는 <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/issues">MWBP 프로젝트 지원 페이지</a>에서 할 수 있습니다. 공개 문의에는 연결키, 클립보드 내용, 개인 파일, 실제 장치명·IP 주소 또는 로그 원문을 그대로 게시하지 마세요. 필요한 정보를 익명화한 뒤 문의해 주세요.</p>
+    <p>앱의 데이터 처리 방식이 달라지면 이 안내를 갱신합니다.</p>
+  </main>
+</body>
+</html>
