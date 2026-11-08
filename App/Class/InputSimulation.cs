@@ -75,7 +75,64 @@ namespace MouseWithoutBorders.Class
         {
         }
 
+        [ThreadStatic] private static long nextNativeRejectionLog;
+        private static readonly NativeInputProgress nativeProgress = new();
+        private static long lastNativeProgressCheck;
+
+        // The existing settings timer samples counters; input never waits for the observer.
+        internal sealed class NativeInputProgress
+        {
+            private long started, completed, previousCompleted;
+            private bool previouslyPending, reported;
+            internal void Enter() => System.Threading.Interlocked.Increment(ref started);
+            internal void Exit() => System.Threading.Interlocked.Increment(ref completed);
+            internal bool ObserveStall()
+            {
+                long done = System.Threading.Interlocked.Read(ref completed);
+                bool pending = System.Threading.Interlocked.Read(ref started) != done;
+                bool stalled = pending && previouslyPending && done == previousCompleted;
+                bool notify = stalled && !reported;
+                previousCompleted = done; previouslyPending = pending; reported = stalled;
+                return notify;
+            }
+        }
+
+        internal static void CheckNativeInputProgress()
+        {
+            long now = Environment.TickCount64;
+            if (now - lastNativeProgressCheck < 1000) return;
+            lastNativeProgressCheck = now;
+            if (nativeProgress.ObserveStall())
+                Logger.Log("Native input pending without completed calls across health checks; capture receiver stacks while input is blocked.");
+        }
+
+        private static uint SendNativeInput(NativeMethods.INPUT64 input)
+        {
+            uint sent;
+            int error = 0;
+            nativeProgress.Enter();
+            try
+            {
+                sent = NativeMethods.SendInput64(1, [input], Marshal.SizeOf(input));
+                if (sent == 0) error = Marshal.GetLastWin32Error();
+            }
+            finally { nativeProgress.Exit(); }
+            if (sent == 0)
+            {
+                long now = Environment.TickCount64;
+                if (now >= nextNativeRejectionLog)
+                {
+                    Logger.Log($"Native input rejected: Win32={error}; trying protected input.");
+                    nextNativeRejectionLog = now + 5000;
+                }
+            }
+            return sent;
+        }
+
         private static uint SendInputEx(NativeMethods.INPUT64 input)
+            => SendInputOnDesktop(input, ForegroundInputAccess.RequiresBroker());
+
+        private static uint SendInputOnDesktop(NativeMethods.INPUT64 input, bool protectedForeground)
         {
             Common.PaintCount = 0;
 
@@ -84,21 +141,21 @@ namespace MouseWithoutBorders.Class
             // Native movement does not change held input; a broker round trip must not delay it.
             bool movementOnly = input.type == 0 && (input.mi.dwFlags & (int)NativeMethods.MOUSEEVENTF.MOVE) != 0
                 && (input.mi.dwFlags & ~(int)(NativeMethods.MOUSEEVENTF.MOVE | NativeMethods.MOUSEEVENTF.ABSOLUTE | NativeMethods.MOUSEEVENTF.VIRTUALDESK)) == 0;
-            uint sent = movementOnly ? NativeMethods.SendInput64(1, [input], Marshal.SizeOf(input)) : 0;
+            uint sent = movementOnly && !protectedForeground ? SendNativeInput(input) : 0;
             if (sent != 0) return sent;
 
             Common.DoSomethingInTheInputSimulationThread(() =>
             {
                 try
                 {
-                if (!movementOnly)
+                if (protectedForeground || !movementOnly)
                 {
-                    if (PrivilegedInput.HasHeldInput)
+                    if (protectedForeground || PrivilegedInput.HasHeldInput)
                     {
                         if (PrivilegedInput.TrySend(input, out sent)) return;
-                        if (PrivilegedInput.HasHeldInput) return;
+                        if (protectedForeground || PrivilegedInput.HasHeldInput) return;
                     }
-                    sent = NativeMethods.SendInput64(1, [input], Marshal.SizeOf(input));
+                    sent = SendNativeInput(input);
                 }
                 if (sent == 0) PrivilegedInput.TrySend(input, out sent);
                 }
