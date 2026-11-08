@@ -21,7 +21,7 @@ RC8부터 바탕화면과 시작 메뉴에 **VEIL MWBP** 실행 바로가기를 
 개발 컴퓨터에 Windows, PowerShell 7, .NET SDK 10.0.403이 필요합니다. `global.json`의 고정 SDK로 빌드하며 설치 EXE에는 .NET 10.0.14 보안 패치를 포함합니다. 사용하는 PC에는 SDK가 필요하지 않습니다.
 
 ```powershell
-$destination = '<발급받은 소유 작업 경로>/release-mwb-v1.2.0-rc.17'
+$destination = '<발급받은 소유 작업 경로>/release-mwb-v1.2.0-rc.18'
 pwsh -NoProfile -File ./build.ps1 -RunTests
 pwsh -NoProfile -File './VEIL- MWBP/Build-Release.ps1' -Destination $destination
 ```
@@ -86,6 +86,24 @@ ChatGPT 실행 중 나타나는 지연의 원인과 지속적인 해소는 아�
 설치 EXE는 별도 설치가 필요 없도록 .NET 10·Windows Desktop 런타임을 포함합니다. RC17의 정확한 배포 크기는 릴리스를 확인하세요. 파일 크기로 실행 중 지연의 원인을 단정하지 않습니다.
 
 현재 EXE는 서명되지 않았으므로 Windows 승인 창에 게시자가 ‘알 수 없음’으로 표시될 수 있습니다. 실제 확인한 사용 환경은 Windows 11 x64이며, UAC 마우스 클릭은 별도 확인이 필요합니다. 이 후보를 모든 요구사항의 최종 수락이나 안정 버전 보증으로 표시하지 않습니다.
+
+## Store용 무인 설치와 제거
+
+등록용 설치 인수는 `--install --silent`입니다. 첫 실행 창과 설치 후 자동 실행을 생략하고, 기존 전체 설치 트랜잭션으로 서비스·현재 사용자 설정·바로가기·앱 등록을 처리합니다. Windows 관리자 승인은 생략하지 않습니다. 성공은 `0`, UAC 취소는 `1223`, 다른 실패는 `1`입니다.
+
+대상은 **호출한 대화형 Windows 사용자**의 SID·HKCU·로컬 앱 데이터입니다. SYSTEM·서비스 계정·Session 0에서는 실패합니다. 이미 다른 관리자 계정으로 실행된 프로세스에서 원 사용자를 추측하지 않습니다. 실제 Store 실행 문맥이 이 계약에 맞는지 패키지 유효성 검사와 깨끗한 PC에서 확인하기 전에는 제출용 설치 검증 통과로 표시하지 않습니다.
+
+Windows 앱 등록의 `QuietUninstallString`은 사용자 확인 창 없이 제거하고 현재 사용자 설정을 보존합니다. 실제 실행 파일과 설치 당시 사용자 SID의 앱 등록이 사라진 후 `0`을 반환하며, 30초 이내에 끝나지 않으면 `1460`을 반환합니다. 기존 `UninstallString`과 설정 창에서의 제거는 사용자 확인을 유지합니다.
+
+설치된 EXE에 직접 `--uninstall --silent`를 넘기면 자체 파일을 삭제할 기존 정리 소유자에게 위임한 뒤 `997`(진행 중)을 반환합니다. 이를 완료 성공 코드로 취급하지 마세요. 완료를 기다려야 하는 배포 도구는 등록된 `QuietUninstallString`을 사용합니다. 공유·전송 기록·로그·받은 파일까지 모두 삭제하는 기능은 아닙니다.
+
+## 수동 서명 workflow
+
+`.github/workflows/store-signing.yml`은 관리자가 승인한 **서명 전용 예외**입니다. 평소 PR 검증은 아래의 로컬 merge-ref gate를 계속 사용합니다. workflow는 검토된 `main`에서 수동으로만 시작하며 공개 소스를 빌드·시험하고 SignPath의 사람 승인을 요청합니다. 서명과 타임스탬프를 검증한 최종 EXE에서만 SHA256을 생성하고 산출물을 보관합니다. 공개 릴리스 게시나 Store 제출은 자동으로 하지 않습니다.
+
+SignPath 지원 선정과 정본 저장소의 trusted-build 연결이 먼저 필요합니다. 공급자가 발급한 organization/project/signing-policy 식별자는 해당 repository variables에, API token은 사용자가 GitHub의 해당 repository secret 입력 화면에 직접 설정합니다. 로컬 `.env`나 채팅으로 토큰을 전달하지 않습니다. 이 소스에 secret 참조가 있다는 이유로 계정·연결·서명이 활성화된 것은 아닙니다.
+
+기존 RC17 공개 파일과 URL은 교체하지 않습니다. 서명된 RC18 이후 새 버전의 불변 HTTPS URL을 실제 검증한 후 Store에 등록합니다. [개인정보처리방침](../docs/privacy.html)과 [Code signing policy](../docs/code-signing-policy.html)는 현재 앱의 처리와 미서명 상태를 설명합니다.
 
 ## PR merge-ref 로컬 검증
 

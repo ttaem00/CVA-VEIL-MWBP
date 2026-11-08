@@ -83,6 +83,7 @@ namespace MouseWithoutBorders.Class
             catch (Exception error) { Console.Error.WriteLine(error.Message); Environment.ExitCode = 1; return; }
             if (PortableInstallLifecycle.TryRunNetworkSetup(startupArgs)) return;
             if (PrivilegedInput.TryRun(startupArgs)) return;
+            if (PortableApplication.TryRunSilentInstall(startupArgs)) return;
             if (PortableApplication.IsClipboardHelperInvocation(startupArgs))
             {
                 global::MouseWithoutBorders.HelperHost.Program.Run();

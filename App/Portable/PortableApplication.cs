@@ -24,7 +24,10 @@ namespace MouseWithoutBorders.Core;
 internal static class PortableApplication
 {
     internal const string ClipboardHelperArgument = "--mwb-clipboard-helper";
+    internal const string InstallArgument = "--install";
     internal const string UninstallArgument = "--uninstall";
+    internal const string SilentArgument = "--silent";
+    internal const int UninstallPendingExitCode = 997;
     internal const string SettingsFileName = "MouseWithoutBorders.prefs.json";
     internal const string InstalledApplicationRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\MouseWithoutBordersPlus";
 
@@ -52,6 +55,39 @@ internal static class PortableApplication
     internal static bool IsClipboardHelperInvocation(string[] args)
     {
         return args.Length > 1 && args[1].Equals(ClipboardHelperArgument, StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static void ValidateSilentInstallArguments(string[] args)
+    {
+        if (args.Length != 3 || !args[1].Equals(InstallArgument, StringComparison.OrdinalIgnoreCase)
+            || !args[2].Equals(SilentArgument, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Use --install --silent for unattended installation.");
+    }
+
+    internal static void ValidateInteractiveInstallerUser(string userSid, int sessionId)
+    {
+        var sid = new SecurityIdentifier(userSid);
+        if (sessionId == 0 || sid.IsWellKnown(WellKnownSidType.LocalSystemSid)
+            || sid.IsWellKnown(WellKnownSidType.LocalServiceSid) || sid.IsWellKnown(WellKnownSidType.NetworkServiceSid))
+            throw new UnauthorizedAccessException("Run installation for the signed-in Windows user, not a service account.");
+    }
+
+    internal static bool TryRunSilentInstall(string[] args)
+    {
+        if (args.Length < 2 || !args[1].Equals(InstallArgument, StringComparison.OrdinalIgnoreCase)) return false;
+        try
+        {
+            ValidateSilentInstallArguments(args);
+            using var identity = WindowsIdentity.GetCurrent();
+            using var current = Process.GetCurrentProcess();
+            ValidateInteractiveInstallerUser(identity.User?.Value, current.SessionId);
+            InstallProductAsync(preserveCurrentPreferences: false, launchAfterExit: false).GetAwaiter().GetResult();
+            Environment.ExitCode = 0;
+        }
+        catch (System.ComponentModel.Win32Exception error) when (error.NativeErrorCode == 1223)
+        { Environment.ExitCode = 1223; }
+        catch (Exception error) { Console.Error.WriteLine(error.Message); Environment.ExitCode = 1; }
+        return true;
     }
 
     internal static bool PrepareFirstLaunch()
@@ -105,7 +141,7 @@ internal static class PortableApplication
 
     // The first-launch UI keeps its message pump alive while awaiting this owner.
     // Fresh setup must not initialize Setting.Values beside the downloaded executable.
-    internal static async Task<bool> InstallProductAsync(bool preserveCurrentPreferences)
+    internal static async Task<bool> InstallProductAsync(bool preserveCurrentPreferences, bool launchAfterExit = true)
     {
         if (PowerToys.GPOWrapper.GPOWrapper.GetConfiguredMouseWithoutBordersEnabledValue() == PowerToys.GPOWrapper.GpoRuleConfigured.Disabled)
             throw new UnauthorizedAccessException("Mouse Without Borders is disabled by administrator policy.");
@@ -140,8 +176,9 @@ internal static class PortableApplication
                 Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), CurrentExecutablePath, LegacyExecutable);
             SetStartWithWindows(startup, PrivilegedInput.ProtectedExecutable);
             RegisterInstalledApplication(transaction, Registry.CurrentUser);
-            ScheduleInstalledLaunchAfterExit(PrivilegedInput.ProtectedExecutable, PrivilegedInput.ProtectedDirectory,
-                moving && preserveCurrentPreferences ? CurrentSettingsPath : null);
+            if (launchAfterExit)
+                ScheduleInstalledLaunchAfterExit(PrivilegedInput.ProtectedExecutable, PrivilegedInput.ProtectedDirectory,
+                    moving && preserveCurrentPreferences ? CurrentSettingsPath : null);
             transaction.Complete(); running?.Complete(); legacy?.Complete();
             return false; // Caller quits normally; the existing launch helper waits for that exit.
         }
@@ -211,18 +248,31 @@ internal static class PortableApplication
     internal static bool TryRunUninstall(string[] args)
     {
         if (args.Length < 2 || args[1] != UninstallArgument) return false;
+        bool silent = args.Skip(2).Any(value => value.Equals(SilentArgument, StringComparison.OrdinalIgnoreCase));
         try
         {
-            if (args.Length != 2 || !IsInstalledCopy) throw new ArgumentException("Run Uninstall from Windows Installed Apps or the installed MWBP settings.");
-            bool? deletePreferences = ConfirmUninstall(null);
+            if (args.Length != (silent ? 3 : 2) || !IsInstalledCopy)
+                throw new ArgumentException("Run Uninstall from Windows Installed Apps or the installed MWBP settings.");
+            if (silent)
+            {
+                using var identity = WindowsIdentity.GetCurrent();
+                using var current = Process.GetCurrentProcess();
+                ValidateInteractiveInstallerUser(identity.User?.Value, current.SessionId);
+            }
+            bool? deletePreferences = silent ? false : ConfirmUninstall(null);
             if (deletePreferences == null) return true;
             using var running = PortableInstallLifecycle.StopInstalledCopy(PrivilegedInput.ProtectedExecutable);
             BeginUninstall(deletePreferences.Value, running);
+            // The loaded EXE cannot delete itself. The registered quiet command
+            // waits for the existing cleanup owner before returning success.
+            if (silent) Environment.ExitCode = UninstallPendingExitCode;
         }
-        catch (System.ComponentModel.Win32Exception error) when (error.NativeErrorCode == 1223) { }
+        catch (System.ComponentModel.Win32Exception error) when (error.NativeErrorCode == 1223)
+        { if (silent) Environment.ExitCode = 1223; }
         catch (Exception error)
         {
-            MessageBox.Show(error.Message, Ui.Text("Uninstall Mouse Without Borders"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+            if (silent) Console.Error.WriteLine(error.Message);
+            else MessageBox.Show(error.Message, Ui.Text("Uninstall Mouse Without Borders"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             Environment.ExitCode = 1;
         }
         return true;
@@ -288,17 +338,39 @@ internal static class PortableApplication
         return (files.ToString(), preferencesScript);
     }
 
-    internal static (string Name, object Value)[] InstalledApplicationValues(string executablePath, string version) =>
+    internal static ProcessStartInfo CreateQuietUninstallStartInfo(string executablePath, string userSid)
+    {
+        string sid = new SecurityIdentifier(userSid).Value;
+        string executable = EscapePowerShellLiteral(executablePath);
+        string registration = EscapePowerShellLiteral(@"Registry::HKEY_USERS\" + sid + "\\" + InstalledApplicationRegistryPath);
+        string script = "$ErrorActionPreference='Stop';& '" + executable + "' '--uninstall' '--silent' | Out-Null;"
+            + "if ($LASTEXITCODE -notin @(0," + UninstallPendingExitCode + ")) { exit $LASTEXITCODE };"
+            + "$deadline=[DateTime]::UtcNow.AddSeconds(30);"
+            + "while ((Test-Path -LiteralPath '" + executable + "') -or (Test-Path -LiteralPath '" + registration + "')) {"
+            + "if ([DateTime]::UtcNow -ge $deadline) { exit 1460 };Start-Sleep -Milliseconds 100 };exit 0";
+        return CreateCleanupStartInfo(script, elevated: false);
+    }
+
+    internal static (string Name, object Value)[] InstalledApplicationValues(string executablePath, string version, string userSid) =>
     [
         ("DisplayName", StandaloneProduct.DisplayName), ("DisplayVersion", version),
         ("DisplayIcon", executablePath + ",0"), ("InstallLocation", Path.GetDirectoryName(executablePath)!),
         ("UninstallString", '"' + executablePath + "\" " + UninstallArgument),
+        ("QuietUninstallString", QuietUninstallCommand(executablePath, userSid)),
         ("URLInfoAbout", StandaloneProduct.ProjectUrl), ("NoModify", 1), ("NoRepair", 1),
     ];
 
+    private static string QuietUninstallCommand(string executablePath, string userSid)
+    {
+        var info = CreateQuietUninstallStartInfo(executablePath, userSid);
+        return '"' + info.FileName + "\" " + string.Join(' ', info.ArgumentList);
+    }
+
     internal static void RegisterInstalledApplication(PortableInstallTransaction transaction, RegistryKey root)
     {
-        var values = InstalledApplicationValues(PrivilegedInput.ProtectedExecutable, Application.ProductVersion);
+        using var identity = WindowsIdentity.GetCurrent();
+        var values = InstalledApplicationValues(PrivilegedInput.ProtectedExecutable, Application.ProductVersion,
+            identity.User?.Value ?? throw new UnauthorizedAccessException("The current Windows account is unavailable."));
         using var previous = root.OpenSubKey(InstalledApplicationRegistryPath);
         var saved = previous == null ? null : values.Select(value =>
         {

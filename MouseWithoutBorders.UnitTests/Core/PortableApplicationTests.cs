@@ -6,6 +6,8 @@ using System.Drawing;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
+using System.Text;
 using System.Windows.Forms;
 
 using Microsoft.PowerToys.Settings.UI.Library;
@@ -23,13 +25,85 @@ public sealed class PortableApplicationTests
     public void InstalledAppsUsesTheQuotedNormalUninstallEntryPoint()
     {
         string executable = @"C:\Program Files\MWBP\MouseWithoutBordersPlus.exe";
-        var values = PortableApplication.InstalledApplicationValues(executable, "1.2.3-preview").ToDictionary(value => value.Name, value => value.Value);
+        var values = PortableApplication.InstalledApplicationValues(executable, "1.2.3-preview", "S-1-5-21-101-202-303-1001")
+            .ToDictionary(value => value.Name, value => value.Value);
         Assert.AreEqual("\"" + executable + "\" --uninstall", values["UninstallString"]);
         Assert.AreEqual("1.2.3-preview", values["DisplayVersion"]);
         Assert.AreEqual(Path.GetDirectoryName(executable), values["InstallLocation"]);
         Assert.AreEqual(1, values["NoModify"]); Assert.AreEqual(1, values["NoRepair"]);
         Assert.IsFalse(((string)values["UninstallString"]).Contains(PrivilegedInput.UninstallArgument));
         Assert.IsFalse(PortableApplication.TryRunUninstall([executable]));
+        StringAssert.Contains((string)values["QuietUninstallString"], "-EncodedCommand ");
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public void SilentInstallRequiresItsExplicitCompleteArgumentContract()
+    {
+        PortableApplication.ValidateSilentInstallArguments(["setup.exe", "--install", "--silent"]);
+        PortableApplication.ValidateSilentInstallArguments(["setup.exe", "--INSTALL", "--SILENT"]);
+        foreach (string[] arguments in new[] {
+            new[] { "setup.exe" }, new[] { "setup.exe", "--install" },
+            new[] { "setup.exe", "--silent", "--install" },
+            new[] { "setup.exe", "--install", "--silent", "--port", "15200" } })
+            Assert.ThrowsException<ArgumentException>(() => PortableApplication.ValidateSilentInstallArguments(arguments));
+        Assert.IsFalse(PortableApplication.TryRunSilentInstall(["app.exe"]));
+        int previousExitCode = Environment.ExitCode;
+        try
+        {
+            Assert.IsTrue(PortableApplication.TryRunSilentInstall(["setup.exe", "--install"]));
+            Assert.AreEqual(1, Environment.ExitCode, "Malformed unattended invocations must exit before first-launch UI or installation.");
+        }
+        finally { Environment.ExitCode = previousExitCode; }
+    }
+
+    [TestMethod]
+    public void SilentInstallationUsesOnlyTheInvokingInteractiveUser()
+    {
+        PortableApplication.ValidateInteractiveInstallerUser("S-1-5-21-101-202-303-1001", 1);
+        PortableApplication.ValidateInteractiveInstallerUser("S-1-12-1-101-202-303-1001", 1);
+        Assert.ThrowsException<UnauthorizedAccessException>(() =>
+            PortableApplication.ValidateInteractiveInstallerUser("S-1-5-21-101-202-303-1001", 0));
+        foreach (string sid in new[] { "S-1-5-18", "S-1-5-19", "S-1-5-20" })
+            Assert.ThrowsException<UnauthorizedAccessException>(() => PortableApplication.ValidateInteractiveInstallerUser(sid, 1));
+    }
+
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(997)]
+    public void QuietUninstallWaitsForRemovalAndReturnsTheCleanupResult(int dispatchExitCode)
+    {
+        WithTemporarySettingsPath(path =>
+        {
+            string script = Path.Combine(Path.GetDirectoryName(path)!, "synthetic-uninstaller.cmd");
+            string dispatched = Path.Combine(Path.GetDirectoryName(path)!, "cleanup-dispatched.txt");
+            const string sid = "S-1-5-21-101-202-303-1001";
+            File.WriteAllText(script, "@echo dispatched>\"" + dispatched + "\"\r\n@exit /b " + dispatchExitCode + "\r\n", Encoding.ASCII);
+            var info = PortableApplication.CreateQuietUninstallStartInfo(script, sid);
+            Assert.IsFalse(info.UseShellExecute); Assert.IsTrue(info.CreateNoWindow);
+            info.RedirectStandardError = true;
+            string command = Encoding.Unicode.GetString(Convert.FromBase64String(info.ArgumentList.Last()));
+            StringAssert.Contains(command, "Registry::HKEY_USERS\\" + sid);
+            Assert.IsFalse(command.Contains("HKEY_CURRENT_USER"));
+            using (var completed = Process.Start(info)!)
+            {
+                var error = completed.StandardError.ReadToEndAsync();
+                Assert.IsTrue(SpinWait.SpinUntil(() => File.Exists(dispatched), TimeSpan.FromSeconds(5)));
+                Assert.IsFalse(completed.WaitForExit(500), "A pending cleanup cannot report success while the executable remains.");
+                File.Delete(script); // The synthetic cleanup owner, not the command wrapper, removes its file.
+                Assert.IsTrue(completed.WaitForExit(15000));
+                Assert.AreEqual(0, completed.ExitCode, "Pending is not success until the synthetic executable is actually removed. "
+                    + error.GetAwaiter().GetResult());
+            }
+            Assert.IsFalse(File.Exists(script));
+            File.WriteAllText(script, "@exit /b 1223\r\n", Encoding.ASCII);
+            using (var cancelled = Process.Start(PortableApplication.CreateQuietUninstallStartInfo(script, sid))!)
+            {
+                Assert.IsTrue(cancelled.WaitForExit(15000));
+                Assert.AreEqual(1223, cancelled.ExitCode);
+            }
+            Assert.IsTrue(File.Exists(script), "A cancelled uninstall must not be treated as removed.");
+        });
     }
 
     [TestMethod]
