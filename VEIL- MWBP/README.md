@@ -97,13 +97,27 @@ Windows 앱 등록의 `QuietUninstallString`은 사용자 확인 창 없이 제�
 
 설치된 EXE에 직접 `--uninstall --silent`를 넘기면 자체 파일을 삭제할 기존 정리 소유자에게 위임한 뒤 `997`(진행 중)을 반환합니다. 이를 완료 성공 코드로 취급하지 마세요. 완료를 기다려야 하는 배포 도구는 등록된 `QuietUninstallString`을 사용합니다. 공유·전송 기록·로그·받은 파일까지 모두 삭제하는 기능은 아닙니다.
 
-## 수동 서명 workflow
+## Store 첫 출시와 후속 업데이트
 
-`.github/workflows/store-signing.yml`은 관리자가 승인한 **서명 전용 예외**입니다. 평소 PR 검증은 아래의 로컬 merge-ref gate를 계속 사용합니다. workflow는 검토된 `main`에서 수동으로만 시작하며 공개 소스를 빌드·시험하고 SignPath의 사람 승인을 요청합니다. 서명과 타임스탬프를 검증한 최종 EXE에서만 SHA256을 생성하고 산출물을 보관합니다. 공개 릴리스 게시나 Store 제출은 자동으로 하지 않습니다.
+**첫 출시는 수동입니다.** SignPath 지원이 확정되면 검토된 `main`에서 **MWBP Store signing → Run workflow**를 실행합니다. SignPath에서 사람이 승인하면 서명과 타임스탬프를 검사하고 최종 EXE의 SHA256을 남깁니다. 서명된 파일을 새 버전 릴리스에 올리고, 실제 설치·업데이트·제거를 확인한 뒤 [Partner Center](https://partner.microsoft.com/dashboard/win32apps/f40c2d4a-951e-4d8b-b059-d9eaeabf89bb/overview)에서 직접 제출합니다. Store에서 게시된 상태를 확인한 후에만 후속 자동 제출을 설정합니다. 첫 Store 패키지는 아래 정식 태그 형식의 GitHub 공개 릴리스 URL, x64 EXE, 설치 인수 `--install --silent`, 종료 코드 안내 URL(이 문서)을 사용합니다.
 
-SignPath 지원 선정과 정본 저장소의 trusted-build 연결이 먼저 필요합니다. 공급자가 발급한 organization/project/signing-policy 식별자는 해당 repository variables에, API token은 사용자가 GitHub의 해당 repository secret 입력 화면에 직접 설정합니다. 로컬 `.env`나 채팅으로 토큰을 전달하지 않습니다. 이 소스에 secret 참조가 있다는 이유로 계정·연결·서명이 활성화된 것은 아닙니다.
+**이후 정식 릴리스**를 게시하면 태그의 작업은 릴리스 ID·태그·커밋만 전달합니다. 자격 증명이 있는 작업은 검토된 `main`에서 실행합니다. 정식 태그는 `mwb-vMAJOR.MINOR.PATCH`입니다. 소스 `Version`과 태그의 버전이 같고 `VersionChannel`은 `stable`이어야 합니다. SignPath가 확인하는 출처와 실제 빌드가 일치하도록, 태그의 커밋이 서명 작업 시작 시점의 `main` 커밋과 정확히 같을 때만 빌드·시험하고 사람 승인을 요청합니다. 다르면 태그를 옮기지 말고 릴리스 상태를 확인합니다. 사전 릴리스·초안은 자동 서명/제출 대상이 아닙니다. 사용자의 정상 릴리스 게시 경로를 사용합니다. 다른 Actions 작업이 기본 `GITHUB_TOKEN`으로 게시한 릴리스는 이 트리거를 시작하지 않습니다.
 
-기존 RC17 공개 파일과 URL은 교체하지 않습니다. 서명된 RC18 이후 새 버전의 불변 HTTPS URL을 실제 검증한 후 Store에 등록합니다. [개인정보처리방침](../docs/privacy.html)과 [Code signing policy](../docs/code-signing-policy.html)는 현재 앱의 처리와 미서명 상태를 설명합니다.
+서명 작업과 별도로 검토된 `main`에서 실행하는 제출 작업이 서명자·타임스탬프·버전·해시를 확인합니다. 해당 릴리스에 `VEIL-MWBP-Store-Setup.exe`를 추가하고, 공개 URL을 로그인 없이 다시 받아 같은 파일인지 확인합니다. 같은 이름의 파일은 덮어쓰지 않으며, 다른 바이트가 이미 있으면 중단합니다. 제출한 URL의 파일과 태그를 나중에 바꾸거나 삭제하지 않습니다. 기존 RC17 파일과 URL도 그대로 둡니다. GitHub 불변 릴리스로 잠긴 경우 게시 후 파일을 붙일 수 없으므로 이 자동 경로는 멈춥니다. 잠금을 풀지 말고, 서명한 파일을 초안에 먼저 붙인 뒤 수동으로 게시·제출합니다.
+
+자동 제출은 기존 x64 EXE 패키지 한 건의 주소만 갱신합니다. 다른 패키지·가격·설명을 덮어쓰지 않습니다. Store 패키지 검증과 초안 준비 상태를 확인한 뒤 심사에 한 번 제출하고 제출 ID를 남깁니다. **제출 접수와 Store 게시는 별개**입니다. 심사 중인 제출, 현재보다 오래된 버전, 같은 주소의 재실행, 응답을 받지 못한 제출은 멈추고 Partner Center에서 상태를 확인합니다. 이미 첨부한 EXE를 덮어쓰거나 응답이 불명확한 제출을 다시 보내지 않습니다.
+
+### 연결 설정과 활성화
+
+1. 첫 서명 전에 GitHub의 `mwbp-signing` 환경을 만들고 **`main` 브랜치만** 허용합니다. 태그 규칙으로 승인된 릴리스 담당자만 태그를 만들고 이미 발행한 태그의 갱신·삭제를 차단합니다. SignPath의 GitHub trusted-build 정책과 사람 승인 정책도 적용합니다. 이 환경에만 `SIGNPATH_API_TOKEN`을 secret으로 넣고, `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_SIGNING_POLICY_SLUG`를 변수로 설정합니다. 저장소 전체 secret에 서명 토큰을 두지 않습니다.
+2. 첫 Store 게시 후 GitHub `mwbp-store-production` 환경도 **`main` 브랜치만** 허용합니다. Partner Center에 Microsoft Entra 앱을 연결하고 Store 제출 API에 필요한 Manager 역할을 부여합니다. GitHub OIDC 연합 자격 증명은 기본 환경 subject인 `repo:ttaem00/CVA-VEIL-Mouse_Without_Border_Plus:environment:mwbp-store-production`과 대상 `api://AzureADTokenExchange`를 사용합니다. 이 환경에 `MWBP_STORE_TENANT_ID`, `MWBP_STORE_CLIENT_ID`, `MWBP_STORE_SELLER_ID` 변수를 설정합니다. 새 인증 연결과 권한 부여는 관리자가 공식 화면에서 처리합니다. 이 경로는 장기 client secret을 요구하지 않습니다.
+3. **MWBP submit signed Store update → Run workflow**는 연결과 현재 패키지를 **읽기만** 합니다. Store 첫 게시와 실제 설치 검증, 이 읽기 검사가 모두 확인된 뒤에 저장소 변수 `MWBP_STORE_AUTO_SUBMIT`를 `true`로 설정합니다. 변수의 기본값은 꺼짐입니다. 계정·연결·서명·Store API의 실제 검증 전에는 활성화하지 않습니다.
+
+Partner Center에서 직접 초안을 편집할 때는 먼저 자동 제출을 끄고 진행 중인 작업이 없는지 확인합니다. 동시 편집을 피하고, 기존 제출이 심사 중이면 결과를 확인한 뒤 다음 업데이트를 보냅니다. 토큰이나 비밀값은 채팅·로그·저장소에 넣지 않습니다.
+
+서명 대기 시간이 지나면 SignPath에서 기존 승인 요청을 먼저 확인합니다. 서명 파일을 이미 첨부했다면 같은 승인 작업의 산출물을 사용해 실패한 후속 작업만 재개합니다. 서명을 다시 하면 타임스탬프 때문에 파일 바이트가 달라질 수 있습니다. GitHub 업로드가 응답 없이 끝나 빈 `starter` 자산이 남으면 릴리스에서 그 ID·상태를 확인하고 처리합니다. 업로드가 끝난 자산을 제거하거나 교체하지 않습니다.
+
+평소 PR 검증은 아래 로컬 gate를 사용합니다. [SignPath GitHub 연동](https://docs.signpath.io/trusted-build-systems/github), [Microsoft EXE 첫 게시 조건](https://learn.microsoft.com/en-us/windows/apps/publish/msstore-dev-cli/overview-exe), [Store 제출 API](https://learn.microsoft.com/en-us/windows/apps/publish/store-submission-api), [Entra 연합 인증](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-client-creds-grant-flow#third-case-access-token-request-with-a-federated-credential)을 기준으로 작성했습니다. [개인정보처리방침](../docs/privacy.html)과 [서명 정책](../docs/code-signing-policy.html)은 현재 상태를 설명합니다.
 
 ## PR merge-ref 로컬 검증
 
