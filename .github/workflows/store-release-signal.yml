@@ -1,0 +1,33 @@
+name: MWBP production release signal
+on:
+  release:
+    types: [published]
+permissions: {}
+
+jobs:
+  intent:
+    if: >-
+      github.repository == 'ttaem00/CVA-VEIL-Mouse_Without_Border_Plus' &&
+      vars.MWBP_STORE_AUTO_SUBMIT == 'true' &&
+      !github.event.release.draft && !github.event.release.prerelease
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Record the release event without checking out tag code
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_ID: ${{ github.event.release.id }}
+        run: |
+          @{
+            tag = $env:RELEASE_TAG
+            releaseId = $env:RELEASE_ID
+            commit = $env:GITHUB_SHA
+          } | ConvertTo-Json -Compress | Set-Content -LiteralPath "$env:RUNNER_TEMP/store-release.json" -Encoding ascii
+      - name: Pass the release identity as data
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: mwbp-release-intent-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/store-release.json
+          if-no-files-found: error
+          retention-days: 7
