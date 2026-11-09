@@ -1,0 +1,112 @@
+name: MWBP submit signed Store update
+on:
+  workflow_run:
+    workflows: [MWBP Store signing]
+    types: [completed]
+  workflow_dispatch:
+
+permissions: {}
+concurrency:
+  group: mwbp-store-production
+  queue: max
+
+jobs:
+  publish-asset:
+    if: >-
+      github.repository == 'ttaem00/CVA-VEIL-Mouse_Without_Border_Plus' &&
+      github.ref == 'refs/heads/main' &&
+      vars.MWBP_STORE_AUTO_SUBMIT == 'true' &&
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    outputs:
+      tag: ${{ steps.asset.outputs.tag }}
+      sha256: ${{ steps.asset.outputs.sha256 }}
+    steps:
+      - name: Check out reviewed main, never the triggering tag
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify source and the upstream workflow identity
+        id: source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          $artifact = ./scripts/Get-StoreRunArtifact.ps1 -Kind Signed
+          if ($artifact) {
+            $null = ./scripts/Resolve-StoreRelease.ps1 -Commit $env:RELEASE_COMMIT
+            "artifact-id=$artifact" >> $env:GITHUB_OUTPUT
+          }
+      - name: Retrieve the signed artifact from that exact run attempt
+        if: steps.source.outputs.artifact-id != ''
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          artifact-ids: ${{ steps.source.outputs.artifact-id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/mwbp-signed
+          digest-mismatch: error
+      - name: Attach the verified installer and check the public bytes
+        id: asset
+        if: steps.source.outputs.artifact-id != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          $signed = Join-Path $env:RUNNER_TEMP 'mwbp-signed'
+          ./scripts/Publish-StoreReleaseAsset.ps1 -Commit $env:RELEASE_COMMIT `
+            -Installer (Join-Path $signed 'VEIL-MWBP-Setup.exe') -Checksum (Join-Path $signed 'SHA256SUMS.txt') `
+            -Manifest (Join-Path $signed 'store-release.json')
+
+  store:
+    needs: publish-asset
+    if: >-
+      always() && !cancelled() &&
+      github.repository == 'ttaem00/CVA-VEIL-Mouse_Without_Border_Plus' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (needs.publish-asset.result == 'success' && needs.publish-asset.outputs.tag != '' &&
+        vars.MWBP_STORE_AUTO_SUBMIT == 'true'))
+    runs-on: windows-latest
+    timeout-minutes: 15
+    environment: mwbp-store-production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out reviewed main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check the Store connection without changing the draft
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        env:
+          MWBP_STORE_TENANT_ID: ${{ vars.MWBP_STORE_TENANT_ID }}
+          MWBP_STORE_CLIENT_ID: ${{ vars.MWBP_STORE_CLIENT_ID }}
+          MWBP_STORE_SELLER_ID: ${{ vars.MWBP_STORE_SELLER_ID }}
+        run: ./scripts/Submit-StoreUpdate.ps1 -CheckOnly
+      - name: Submit the verified signed release for Store certification
+        if: github.event_name == 'workflow_run'
+        shell: pwsh
+        env:
+          MWBP_STORE_TENANT_ID: ${{ vars.MWBP_STORE_TENANT_ID }}
+          MWBP_STORE_CLIENT_ID: ${{ vars.MWBP_STORE_CLIENT_ID }}
+          MWBP_STORE_SELLER_ID: ${{ vars.MWBP_STORE_SELLER_ID }}
+          RELEASE_TAG: ${{ needs.publish-asset.outputs.tag }}
+          ASSET_SHA256: ${{ needs.publish-asset.outputs.sha256 }}
+        run: ./scripts/Submit-StoreUpdate.ps1 -ReleaseTag $env:RELEASE_TAG -AssetSha256 $env:ASSET_SHA256
