@@ -32,6 +32,7 @@ internal static class LogonSession
         if (args.Length < 2 || args[1] != Argument) return false;
         using var identity = WindowsIdentity.GetCurrent();
         if (args.Length != 4 || !identity.IsSystem || !PrivilegedInput.IsProtectedCopy || !PrivilegedInput.ServiceModeAllowed
+            || !PrivilegedInput.ApprovalScreensAllowed()
             || Process.GetCurrentProcess().SessionId != NativeMethods.WTSGetActiveConsoleSessionId()
             || !WinAPI.GetMyDesktop().Equals("winlogon", StringComparison.OrdinalIgnoreCase))
             throw new UnauthorizedAccessException("Invalid logon input invocation.");
@@ -53,9 +54,12 @@ internal static class LogonSession
     }
 
     // null means no process may run; a user token is deliberately unnecessary at boot.
-    internal static string SelectRole(string authorized, string interactiveUser, int session) =>
+    // The sign-in screen is one of the Windows approval screens: without that permission no
+    // process runs there at all, so nothing listens on the network before a user signs in.
+    internal static string SelectRole(string authorized, string interactiveUser, int session, bool approvalScreensAllowed) =>
         authorized == null || session < 0 || interactiveUser != null && interactiveUser != authorized ? null
-            : interactiveUser == null ? Argument : PrivilegedInput.AgentArgument;
+            : interactiveUser != null ? PrivilegedInput.AgentArgument
+            : approvalScreensAllowed ? Argument : null;
 
     internal static bool Allows(PackageType type) => type is PackageType.Keyboard or PackageType.Mouse
         or PackageType.Heartbeat or PackageType.Heartbeat_ex or PackageType.Heartbeat_ex_l2 or PackageType.Heartbeat_ex_l3

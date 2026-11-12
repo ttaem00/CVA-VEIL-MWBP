@@ -28,7 +28,54 @@ internal static class PrivilegedInput
     internal const string UninstallArgument = "--mwb-input-uninstall";
     internal const string ServiceRegistryPath = @"SYSTEM\CurrentControlSet\Services\" + ServiceName;
     internal const string AuthorizedUserSidValue = "AuthorizedUserSid";
+    internal const string ApprovalScreensArgument = "--mwb-input-approval-screens";
+    internal const string ApprovalScreensValue = "BlockApprovalScreens";
     private const uint DesktopJournalPlayback = 0x0020;
+
+    // Windows approval (UAC), sign-in and lock screens run on a separate desktop. Installing the
+    // service allows input there, as it always has; an administrator can block those screens
+    // while administrator apps stay controllable. No value, or 0, means allowed. Anything else,
+    // or a value that cannot be read, means blocked. The value lives beside the service
+    // configuration, which only administrators can write, and is enforced by the SYSTEM worker:
+    // the ordinary app that asks for input cannot change it.
+    internal static bool ReadApprovalScreens(Func<object> readValue)
+    {
+        try { object value = readValue(); return value == null || value is int number && number == 0; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        { return false; }
+    }
+
+    internal static bool ApprovalScreensAllowed() => ReadApprovalScreens(() =>
+    {
+        using var parameters = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(ServiceRegistryPath + @"\Parameters");
+        return parameters?.GetValue(ApprovalScreensValue);
+    });
+
+    /// <summary>True when input must not be applied to the desktop with this name.</summary>
+    internal static bool DesktopBlocked(ReadOnlySpan<char> desktopName, bool approvalScreensAllowed) =>
+        !approvalScreensAllowed && !desktopName.Equals("Default", StringComparison.OrdinalIgnoreCase);
+
+    // Read once when the worker starts; changing the setting restarts the service and its worker.
+    private static bool agentAllowsApprovalScreens;
+    [ThreadStatic] private static char[] desktopNameBuffer;
+
+    private static bool IsBlockedDesktop(IntPtr desktop)
+    {
+        if (agentAllowsApprovalScreens) return false; // No extra call on the allowed path.
+        char[] name = desktopNameBuffer ??= new char[64];
+        // A name that cannot be read, or does not fit, is not the ordinary desktop.
+        if (!GetUserObjectInformation(desktop, NativeMethods.UOI_NAME, name, name.Length * sizeof(char), out int bytes) || bytes < sizeof(char))
+            return true;
+        return DesktopBlocked(name.AsSpan(0, Math.Min(name.Length, (bytes / sizeof(char)) - 1)), false);
+    }
+
+    // Letting go of a key or button cannot press anything. The worker still applies such a
+    // release on a blocked desktop when it pressed that key itself: Win+L or Enter are pressed
+    // on the ordinary desktop and released after the lock or approval screen has appeared, and
+    // a release that never arrives would leave the key held for whoever uses the PC next.
+    internal static bool IsPureRelease(NativeMethods.INPUT64 input) => input.type == 1
+        ? (input.ki.dwFlags & (int)NativeMethods.KEYEVENTF.KEYUP) != 0
+        : input.type == 0 && input.mi.dwFlags != 0 && (input.mi.dwFlags & ~(4 | 16 | 64 | 256)) == 0;
 
     internal static string NormalizeAuthorizedUserSid(string value) => new SecurityIdentifier(value).Value;
 
@@ -50,7 +97,7 @@ internal static class PrivilegedInput
     // Reply v2 adds failure metadata; never interpret a v1 worker's held-input reply as v2.
     private static string PipeName(int session) => "MouseWithoutBordersPlus/Input/v2/" + session;
     internal const int ReplySize = 12;
-    internal enum InjectionStage : uint { None, OpenDesktop, AttachDesktop, SendInput, RestoreDesktop }
+    internal enum InjectionStage : uint { None, OpenDesktop, AttachDesktop, SendInput, RestoreDesktop, ApprovalScreenBlocked }
     internal readonly record struct InjectionFailure(InjectionStage Stage, int Error);
     internal static bool IsProtectedCopy => Path.GetFullPath(Executable).Equals(ProtectedExecutable, StringComparison.OrdinalIgnoreCase);
     private static NamedPipeClientStream inputPipe;
@@ -101,13 +148,19 @@ internal static class PrivilegedInput
 
     internal static bool TryRun(string[] args)
     {
-        if (args.Length < 2 || args[1] is not (ServiceArgument or AgentArgument or InstallArgument or RemoveArgument or UninstallArgument)) return false;
+        if (args.Length < 2 || args[1] is not (ServiceArgument or AgentArgument or InstallArgument or RemoveArgument or UninstallArgument or ApprovalScreensArgument)) return false;
         try
         {
             using var identity = WindowsIdentity.GetCurrent();
             if (!PolicyAllowsRole(args[1], GPOWrapper.GetConfiguredMouseWithoutBordersEnabledValue(), GPOWrapper.GetConfiguredMwbAllowServiceModeValue()))
                 throw new UnauthorizedAccessException("Protected input is disabled by administrator policy.");
-            if (args[1] is InstallArgument or RemoveArgument or UninstallArgument)
+            if (args[1] == ApprovalScreensArgument)
+            {
+                if (args.Length != 3 || args[2] is not ("on" or "off") || !new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator))
+                    throw new UnauthorizedAccessException("Administrator approval is required to change approval screen control.");
+                PortableInstallLifecycle.ConfigureApprovalScreens(args[2] == "on");
+            }
+            else if (args[1] is InstallArgument or RemoveArgument or UninstallArgument)
             {
                 bool remove = args[1] != InstallArgument;
                 if (args.Length != (remove ? 2 : 3) || !new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator))
@@ -304,6 +357,7 @@ internal static class PrivilegedInput
     private static void RunAgent(string stopEventName, SecurityIdentifier user)
     {
         int session = Process.GetCurrentProcess().SessionId;
+        agentAllowsApprovalScreens = ApprovalScreensAllowed();
         using var stop = EventWaitHandleAcl.OpenExisting(stopEventName, EventWaitHandleRights.Synchronize);
         NamedPipeServerStream server = null;
         var registered = ThreadPool.RegisterWaitForSingleObject(stop, (_, _) => Volatile.Read(ref server)?.Dispose(), null, Timeout.Infinite, true);
@@ -312,13 +366,14 @@ internal static class PrivilegedInput
         var held = new Dictionary<long, NativeMethods.INPUT64>();
         var injectionDeadline = new InjectionDeadline(TimeSpan.FromSeconds(2), () => Environment.Exit(1));
         InjectionFailure failure = default;
-        uint GuardedInject(NativeMethods.INPUT64 input) => injectionDeadline.Run(() => InjectWithFailure(input, out failure));
+        uint GuardedInject(NativeMethods.INPUT64 input, bool ownedRelease = false) =>
+            injectionDeadline.Run(() => InjectWithFailure(input, out failure, ownedRelease));
         bool ReleaseAgentInput()
         {
             InjectionFailure firstFailure = default;
             bool released = ReleaseHeldInput(held, input =>
             {
-                uint count = GuardedInject(input);
+                uint count = GuardedInject(input, ownedRelease: true); // Held entries are stored as their releases.
                 if (count == 0 && firstFailure.Stage == InjectionStage.None) firstFailure = failure;
                 return count;
             });
@@ -344,7 +399,8 @@ internal static class PrivilegedInput
                         if (input.type is not (0 or 1)) throw new InvalidDataException("Only keyboard and mouse input is supported.");
                         if (recoveringPreviousConnection)
                             recoveringPreviousConnection = !ReleaseAgentInput();
-                        uint count = recoveringPreviousConnection ? 0 : GuardedInject(input);
+                        uint count = recoveringPreviousConnection ? 0
+                            : GuardedInject(input, IsPureRelease(input) && IsOwnedRelease(held, input));
                         bool releaseFailed = count == 0 && !recoveringPreviousConnection && IsOwnedRelease(held, input);
                         if (count != 0) TrackHeldInput(held, input);
                         WriteReply(reply, count, held.Count, failure);
@@ -451,7 +507,7 @@ internal static class PrivilegedInput
 
     private static uint Inject(NativeMethods.INPUT64 input) => InjectWithFailure(input, out _);
 
-    private static uint InjectWithFailure(NativeMethods.INPUT64 input, out InjectionFailure failure)
+    private static uint InjectWithFailure(NativeMethods.INPUT64 input, out InjectionFailure failure, bool ownedRelease = false)
     {
         failure = default;
         IntPtr original = NativeMethods.GetThreadDesktop(NativeMethods.GetCurrentThreadId());
@@ -459,6 +515,7 @@ internal static class PrivilegedInput
         if (desktop == IntPtr.Zero) { failure = new(InjectionStage.OpenDesktop, Marshal.GetLastWin32Error()); return 0; }
         try
         {
+            if (!ownedRelease && IsBlockedDesktop(desktop)) { failure = new(InjectionStage.ApprovalScreenBlocked, 5); return 0; }
             if (!SetThreadDesktop(desktop)) { failure = new(InjectionStage.AttachDesktop, Marshal.GetLastWin32Error()); return 0; }
             if (input.type == 0) input.mi.dwExtraInfo = InputSimulation.InjectedInputTag;
             else input.ki.dwExtraInfo = InputSimulation.InjectedInputTag;
@@ -468,7 +525,8 @@ internal static class PrivilegedInput
         }
         finally
         {
-            if (!SetThreadDesktop(original) && failure.Stage == InjectionStage.None)
+            // A blocked desktop was never attached, so there is nothing to restore.
+            if (failure.Stage != InjectionStage.ApprovalScreenBlocked && !SetThreadDesktop(original) && failure.Stage == InjectionStage.None)
                 failure = new(InjectionStage.RestoreDesktop, Marshal.GetLastWin32Error());
             CloseDesktop(desktop);
         }
@@ -525,7 +583,7 @@ internal static class PrivilegedInput
                 // Original MWB launches a SYSTEM process on winlogon before a user token exists.
                 if (session != -1)
                     try { user = InteractiveUser(session); } catch (Win32Exception) { }
-                string role = LogonSession.SelectRole(authorized, user?.Value, session);
+                string role = LogonSession.SelectRole(authorized, user?.Value, session, ApprovalScreensAllowed());
                 if (role == null)
                 { StopAgent(); return; }
                 bool needsLogon = role == LogonSession.Argument;
@@ -589,5 +647,8 @@ internal static class PrivilegedInput
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetNamedPipeServerProcessId(SafePipeHandle pipe, out uint processId);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool SetThreadDesktop(IntPtr desktop);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool CloseDesktop(IntPtr desktop);
+    // Unicode marshalling is required: the default would read the UTF-16 name back as ANSI.
+    [DllImport("user32.dll", EntryPoint = "GetUserObjectInformationW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool GetUserObjectInformation(IntPtr handle, int index, [Out] char[] information, int length, out int needed);
 }
 

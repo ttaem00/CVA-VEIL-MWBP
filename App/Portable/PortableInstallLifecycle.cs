@@ -72,6 +72,34 @@ internal static class PortableInstallLifecycle
         return info;
     }
 
+    internal static ProcessStartInfo CreateApprovalScreensStartInfo(bool allow)
+    {
+        var info = new ProcessStartInfo(Environment.ProcessPath!)
+        { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden };
+        info.ArgumentList.Add(PrivilegedInput.ApprovalScreensArgument);
+        info.ArgumentList.Add(allow ? "on" : "off");
+        return info;
+    }
+
+    // Runs only in the explicitly elevated role. The worker reads the value when it starts,
+    // so the service is restarted; nothing is checked per input beyond what the worker does.
+    internal static void ConfigureApprovalScreens(bool allow)
+    {
+        string image = "\"" + PrivilegedInput.ProtectedExecutable + "\" " + PrivilegedInput.ServiceArgument;
+        using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(PrivilegedInput.ServiceRegistryPath))
+            if (key == null || !string.Equals(key.GetValue("ImagePath") as string, image, StringComparison.OrdinalIgnoreCase))
+                throw new IOException("Install MWBP on this PC before changing approval screen control.");
+        StopInputService();
+        try
+        {
+            using var parameters = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(PrivilegedInput.ServiceRegistryPath + @"\Parameters", true)
+                ?? throw new IOException("The input service configuration is missing. Choose Repair installation.");
+            if (allow) parameters.DeleteValue(PrivilegedInput.ApprovalScreensValue, false);
+            else parameters.SetValue(PrivilegedInput.ApprovalScreensValue, 1, Microsoft.Win32.RegistryValueKind.DWord);
+        }
+        finally { RunServiceCommand("start", PrivilegedInput.ServiceName); }
+    }
+
     // Runs only in the early, explicitly elevated installer role; it never reads preferences.
     internal static void ConfigurePrivilegedInput(bool remove, string authorizedUserSid = null, bool uninstall = false)
     {
@@ -142,8 +170,7 @@ internal static class PortableInstallLifecycle
                         registrySecurity.AddAccessRule(new RegistryAccessRule(sid, sid == users ? RegistryRights.ReadKey : RegistryRights.FullControl,
                             InheritanceFlags.ContainerInherit, PropagationFlags.None, AccessControlType.Allow));
                     parameters.SetAccessControl(registrySecurity);
-                    parameters.SetValue(PrivilegedInput.AuthorizedUserSidValue, authorizedUserSid, Microsoft.Win32.RegistryValueKind.String);
-                }
+                    parameters.SetValue(PrivilegedInput.AuthorizedUserSidValue, authorizedUserSid, Microsoft.Win32.RegistryValueKind.String);                }
                 // SCM owns recovery; the app does not add an input retry/polling loop.
                 RunServiceCommand("failure", PrivilegedInput.ServiceName, "reset=", "86400", "actions=", "restart/5000");
                 // The running service must release the protected image before file rollback.
