@@ -331,6 +331,10 @@ namespace MouseWithoutBorders.Class
         [DllImport("user32.dll")]
         internal static extern bool GetCursorInfo(ref CURSORINFO ci);
 
+        [LibraryImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static partial bool GetClipCursor(out RECT rect);
+
         [StructLayout(LayoutKind.Sequential)]
         internal struct MOUSEKEYS
         {

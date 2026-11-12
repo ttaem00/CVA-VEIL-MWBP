@@ -1,3 +1,4 @@
+using System.Drawing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MouseWithoutBorders.Class;
 using MouseWithoutBorders.Core;
@@ -5,6 +6,7 @@ using MouseWithoutBorders.Core;
 namespace MouseWithoutBorders.UnitTests.Core;
 
 [TestClass]
+[DoNotParallelize]
 public sealed class PointerCaptureTests
 {
     private static DATA Move(int x, int y, uint des = 202) => new()
@@ -60,7 +62,7 @@ public sealed class PointerCaptureTests
     }
 
     [TestMethod]
-    public void AHiddenPointerIsRepeatedAndAVisibleOneIsSaidOnce()
+    public void CaptureAndReleaseAreRepeatedUntilMovementUsesTheRightMode()
     {
         // (hidden, reportedHidden, sameConnection, now, nextRepeat, acknowledged)
         Assert.IsTrue(PointerCapture.ShouldReport(true, false, true, 0, 0, false), "Newly hidden.");
@@ -72,6 +74,47 @@ public sealed class PointerCaptureTests
         Assert.IsTrue(PointerCapture.ShouldReport(true, true, false, 0, 1000, true), "A new connection has not heard that the pointer is hidden.");
         Assert.IsTrue(PointerCapture.ShouldReport(false, true, false, 0, 1000, false), "A new connection must not be left believing the pointer is hidden.");
         Assert.IsFalse(PointerCapture.ShouldReport(false, false, false, 0, 0, false), "A new connection needs no notice about a visible pointer.");
+    }
+
+    [TestMethod]
+    public void AClipMustConfineThePointerToLessThanTheDesktop()
+    {
+        var monitor = new Rectangle(-2560, 0, 2560, 1440);
+        var desktop = new Rectangle(-2560, 0, 5120, 1440);
+        Assert.IsFalse(PointerCapture.IsViewportClip(desktop, desktop));
+        Assert.IsTrue(PointerCapture.IsViewportClip(desktop, monitor), "A game can lock to one monitor of a larger desktop.");
+        Assert.IsFalse(PointerCapture.IsViewportClip(monitor, monitor));
+        Assert.IsFalse(PointerCapture.IsViewportClip(monitor, Rectangle.Empty));
+        Assert.IsTrue(PointerCapture.IsViewportClip(monitor, new Rectangle(-2200, 150, 1600, 900)));
+    }
+
+    [TestMethod]
+    public void AReleaseIsRepeatedWhileRelativeMouseMovesStillArrive()
+    {
+        Assert.IsFalse(PointerCapture.ShouldReport(false, false, true, 500, 1000, true));
+        Assert.IsTrue(PointerCapture.ShouldReport(false, false, true, 1000, 1000, true));
+        Assert.IsTrue(PointerCapture.ShouldReport(false, false, false, 500, 1000, true));
+    }
+
+    [TestMethod]
+    public void AnOrdinaryHiddenPointerFollowsMovesAndIsNotTreatedAsRecentering()
+    {
+        PointerCapture.ResetForTest();
+        try
+        {
+            var center = new Point(500, 400);
+            var left = new Point(300, 400);
+            var right = new Point(750, 400);
+            Assert.IsFalse(PointerCapture.ObserveRecentering(left, center, left), "Fullscreen geometry alone cannot enable relative motion.");
+            Assert.IsFalse(PointerCapture.ObserveRecentering(center, center, left));
+            Assert.IsFalse(PointerCapture.ObserveRecentering(center, center, left), "A duplicate position does not prove recentering.");
+            Assert.IsTrue(PointerCapture.ObserveRecentering(center, center, right), "Distinct accepted moves leave the game pointer centered.");
+            Assert.IsTrue(PointerCapture.ObserveRecentering(right, center, null), "A sample can arrive before the next game frame.");
+            Assert.IsTrue(PointerCapture.ObserveRecentering(center, center, null), "The next centered sample keeps game motion relative.");
+            Assert.IsTrue(PointerCapture.ObserveRecentering(left, center, null));
+            Assert.IsFalse(PointerCapture.ObserveRecentering(right, center, null), "Sustained movement away releases recentering mode.");
+        }
+        finally { PointerCapture.ResetForTest(); }
     }
 
     [TestMethod]

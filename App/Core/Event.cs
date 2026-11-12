@@ -140,40 +140,27 @@ internal static class Event
             return false;
         }
 
-        if (peer != (uint)Common.MachineID)
+        bool captured = peer != (uint)Common.MachineID && PointerCapture.IsCaptured(peer);
+        if (captured && !InputHook.EasyMouseKeyDown)
         {
-            if (PointerCapture.IsCaptured(peer))
-            {
-                // That PC's program has hidden the pointer and reads distances. Send how far the
-                // mouse moved; do not advance a position or leave by the screen edge. Buttons and
-                // wheels act where the pointer is, without moving it.
-                activationPending = false;
-                if (e.dwFlags == WM.WM_MOUSEMOVE && dx == 0 && dy == 0) return true;
-                MousePackage.Des = (ID)peer;
-                MousePackage.Type = PackageType.Mouse;
-                MousePackage.Md = e;
-                bool move = e.dwFlags == WM.WM_MOUSEMOVE;
-                if (move) { myLastX = e.X; myLastY = e.Y; }
-                MousePackage.Md.X = move ? PointerCapture.Encode(Math.Clamp(dx, -PointerCapture.MaxDistance, PointerCapture.MaxDistance)) : MOVE_MOUSE_RELATIVE;
-                MousePackage.Md.Y = move ? PointerCapture.Encode(Math.Clamp(dy, -PointerCapture.MaxDistance, PointerCapture.MaxDistance)) : MOVE_MOUSE_RELATIVE;
-                Common.SkSend(MousePackage, null, false);
-                return Common.DesMachineID != Common.MachineID;
-            }
+            // Normal gameplay sends distances without advancing a screen position. The held
+            // activation key lets the same movement drive the layout for an intentional exit.
+            return SendCapturedMouse((ID)peer, e, dx, dy);
+        }
 
-            if (PointerCapture.TakeResume(peer) is { } resume)
+        if (!captured && peer != (uint)Common.MachineID && PointerCapture.TakeResume(peer) is { } resume)
+        {
+            // Resume from the actual position after the receiving app releases the cursor.
+            Rectangle peerDesktop = Rectangle.Empty;
+            foreach (var monitor in layout.Monitors)
+                if (monitor.Key.Peer == peer) peerDesktop = peerDesktop.IsEmpty ? monitor.NativeBounds : Rectangle.Union(peerDesktop, monitor.NativeBounds);
+            if (!peerDesktop.IsEmpty)
             {
-                // The pointer is visible again: continue from where it really is on that PC.
-                Rectangle peerDesktop = Rectangle.Empty;
+                var point = new Point(peerDesktop.Left + Math.Min(peerDesktop.Width - 1, (int)((long)resume.X * peerDesktop.Width / 65535)),
+                    peerDesktop.Top + Math.Min(peerDesktop.Height - 1, (int)((long)resume.Y * peerDesktop.Height / 65535)));
                 foreach (var monitor in layout.Monitors)
-                    if (monitor.Key.Peer == peer) peerDesktop = peerDesktop.IsEmpty ? monitor.NativeBounds : Rectangle.Union(peerDesktop, monitor.NativeBounds);
-                if (!peerDesktop.IsEmpty)
-                {
-                    var point = new Point(peerDesktop.Left + (int)((long)resume.X * peerDesktop.Width / 65535),
-                        peerDesktop.Top + (int)((long)resume.Y * peerDesktop.Height / 65535));
-                    foreach (var monitor in layout.Monitors)
-                        if (monitor.Key.Peer == peer && monitor.NativeBounds.Contains(point))
-                        { activeMonitor = monitor.Key; monitorPoint = point; break; }
-                }
+                    if (monitor.Key.Peer == peer && monitor.NativeBounds.Contains(point))
+                    { activeMonitor = monitor.Key; monitorPoint = point; break; }
             }
         }
 
@@ -228,6 +215,8 @@ internal static class Event
         {
             // The hook completes local arrival before exposing the following physical click/key.
             MachineStuff.SwitchLocation.Count = 0;
+            // An explicit arrival supersedes any older cursor position reported by the target.
+            _ = PointerCapture.TakeResume(activeMonitor.Value.Peer);
         }
 
         if (activeMonitor.Value.Peer == (uint)Common.MachineID)
@@ -237,6 +226,15 @@ internal static class Event
             if (changedPeer) Helper.MainFormDot();
             Common.LastPos = monitorPoint;
             return changedPeer || warped;
+        }
+
+        if (!changedPeer && captured) return SendCapturedMouse((ID)peer, e, dx, dy);
+        if (changedPeer && PointerCapture.IsCaptured(activeMonitor.Value.Peer))
+        {
+            // The crossing movement belonged to the previous PC. A known game receives its
+            // next real movement as a distance, without an absolute arrival warp.
+            Common.HideMouseCursor(false);
+            return true;
         }
 
         Rectangle targetDesktop = position.Monitor.NativeBounds;
@@ -252,6 +250,25 @@ internal static class Event
         if (Common.DesMachineID == Common.MachineID) return false;
         if (changedPeer) Common.HideMouseCursor(false);
         return true;
+    }
+
+    private static bool SendCapturedMouse(ID peer, MOUSEDATA mouse, int dx, int dy)
+    {
+        bool move = mouse.dwFlags == WM.WM_MOUSEMOVE;
+        if (move)
+        {
+            if (dx == 0 && dy == 0) return true;
+            myLastX = mouse.X;
+            myLastY = mouse.Y;
+        }
+
+        MousePackage.Des = peer;
+        MousePackage.Type = PackageType.Mouse;
+        MousePackage.Md = mouse;
+        MousePackage.Md.X = move ? PointerCapture.Encode(Math.Clamp(dx, -PointerCapture.MaxDistance, PointerCapture.MaxDistance)) : MOVE_MOUSE_RELATIVE;
+        MousePackage.Md.Y = move ? PointerCapture.Encode(Math.Clamp(dy, -PointerCapture.MaxDistance, PointerCapture.MaxDistance)) : MOVE_MOUSE_RELATIVE;
+        Common.SkSend(MousePackage, null, false);
+        return Common.DesMachineID != Common.MachineID;
     }
 
     internal static bool IsSwitchingByMouseEnabled()

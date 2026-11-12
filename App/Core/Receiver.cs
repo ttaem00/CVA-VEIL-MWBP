@@ -171,11 +171,10 @@ internal static class Receiver
 
                     if (DragDrop.HandleCancelMouse(package.Md.dwFlags)) return;
 
-                    // Tell the controller when this PC's foreground program hides or shows the pointer.
-                    if (package.Des == Common.MachineID)
-                        PointerCapture.Observe(package.Src, tcp, Math.Abs((long)package.Md.X) >= Event.MOVE_MOUSE_RELATIVE);
-
-                    if (Math.Abs(package.Md.X) >= Event.MOVE_MOUSE_RELATIVE && Math.Abs(package.Md.Y) >= Event.MOVE_MOUSE_RELATIVE)
+                    bool relative = Math.Abs((long)package.Md.X) >= Event.MOVE_MOUSE_RELATIVE
+                        && Math.Abs((long)package.Md.Y) >= Event.MOVE_MOUSE_RELATIVE;
+                    MOUSEDATA? requestedMove = null;
+                    if (relative)
                     {
                         if (package.Md.dwFlags == WM.WM_MOUSEMOVE)
                         {
@@ -183,24 +182,31 @@ internal static class Receiver
                             // never chooses a neighbour from where its pointer ended up.
                             if (PointerCapture.IsRelativeMove(package))
                                 InputSimulation.MoveMouseRelative(PointerCapture.Decode(package.Md.X), PointerCapture.Decode(package.Md.Y));
-                            _ = NativeMethods.GetCursorPos(ref lastXY);
                         }
                         else
                         {
                             // A button or wheel "where the pointer is": apply it without a movement.
                             _ = InputSimulation.SendMouseAtPointer(package.Md);
-                            _ = NativeMethods.GetCursorPos(ref lastXY);
                         }
                     }
                     else
                     {
-                        _ = InputSimulation.SendMouse(package.Md);
-                        _ = NativeMethods.GetCursorPos(ref lastXY);
+                        uint applied = InputSimulation.SendMouse(package.Md);
+                        if (applied != 0 && package.Md.dwFlags == WM.WM_MOUSEMOVE) requestedMove = package.Md;
                     }
 
-                    Common.LastX = lastXY.X;
-                    Common.LastY = lastXY.Y;
-                    CustomCursor.ShowFakeMouseCursor(Common.LastX, Common.LastY);
+                    bool captured = PointerCapture.Observe(package.Src, package.Des == Common.MachineID ? tcp : null,
+                        relative && package.Md.dwFlags == WM.WM_MOUSEMOVE, requestedMove);
+                    if (NativeMethods.GetCursorPos(ref lastXY))
+                    {
+                        Common.LastX = lastXY.X;
+                        Common.LastY = lastXY.Y;
+                        if (!captured) CustomCursor.ShowFakeMouseCursor(Common.LastX, Common.LastY);
+                    }
+                    else
+                    {
+                        CustomCursor.ShowFakeMouseCursor(int.MinValue, int.MinValue);
+                    }
                 }
 
                 DragDrop.DragDropStep01(package.Md.dwFlags);
@@ -412,7 +418,7 @@ internal static class Receiver
 
             case PackageType.HideMouse:
                 Clipboard.HasSwitchedMachineSinceLastCopy = true;
-                Common.HideMouseCursor(true);
+                Common.HideMouseCursor(!PointerCapture.LocalCapture);
                 Helper.MainFormDotEx(false);
                 InitAndCleanup.ReleaseAllKeys();
                 break;

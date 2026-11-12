@@ -284,6 +284,109 @@ public sealed class MonitorInputIntegrationTests
     }
 
     [TestMethod]
+    public void HeldCapsLockCrossesBothWaysWithoutSendingAnAbsoluteMoveToTheCapturedGame()
+    {
+        using var game = new QueuedPeer(202);
+        var transport = QueueTransport(game.Peer);
+        var held = (HeldKeyChord)typeof(InputHook).GetField("easyMouseKeys", StaticFields)!.GetValue(null)!;
+        var previousKeys = held.DownKeys;
+        var nativePosition = Point.Empty;
+        bool canRestorePosition = NativeMethods.GetCursorPos(ref nativePosition);
+        var hook = (InputHook)RuntimeHelpers.GetUninitializedObject(typeof(InputHook));
+        GC.SuppressFinalize(hook);
+        hook.MouseEvent += Event.MouseEvent;
+        hook.KeyboardEvent += _ => { };
+        DATA ReadFrame(byte[] bytes, int offset)
+        {
+            var frame = new DATA(bytes[offset..(offset + Package.PACKAGE_SIZE)]);
+            frame.Type = (PackageType)((int)frame.Type & 0xff);
+            return frame;
+        }
+
+        PointerCapture.ResetForTest();
+        try
+        {
+            held.Clear();
+            synthetic.EasyMouse = (int)EasyMouseOption.Custom;
+            synthetic.EasyMouseActivationKeys = [20];
+            MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)101;
+            var edge = new Point(2559, 100);
+            Common.LastPos = edge;
+            Event.ResetMonitorPointer(edge);
+            PointerCapture.Receive(new DATA { Type = PackageType.PointerCapture, Des = (ID)101, Md = new() { dwFlags = 1 } }, game.Peer);
+
+            InvokeKeyboard(hook, 20, false);
+            Assert.AreEqual(1, InvokeMouse(hook, WM.WM_MOUSEMOVE, edge, 0));
+            Assert.AreEqual((ID)202, Common.DesMachineID);
+            WaitForInput(transport);
+            var arrival = game.Wire.ToArray();
+            for (int offset = 0; offset < arrival.Length; offset += Package.PACKAGE_SIZE)
+                Assert.AreNotEqual(PackageType.Mouse, ReadFrame(arrival, offset).Type,
+                    "Arrival must not warp a captured cursor or send the previous PC's delta.");
+            game.Wire.SetLength(0);
+
+            var parked = Common.LastPos;
+            Assert.AreEqual(1, InvokeMouse(hook, WM.WM_MOUSEMOVE, new Point(parked.X + 5, parked.Y), 0));
+            InvokeKeyboard(hook, 20, true);
+            Assert.AreEqual(1, InvokeMouse(hook, WM.WM_MOUSEMOVE, new Point(parked.X - 15, parked.Y), 0));
+            Assert.AreEqual((ID)202, Common.DesMachineID, "Releasing Caps Lock must prevent a game movement from leaving the screen.");
+            WaitForInput(transport);
+            var movement = game.Wire.ToArray();
+            Assert.IsTrue(movement.Length >= Package.PACKAGE_SIZE);
+            for (int offset = 0; offset < movement.Length; offset += Package.PACKAGE_SIZE)
+                Assert.IsTrue(PointerCapture.IsRelativeMove(ReadFrame(movement, offset)));
+
+            InvokeKeyboard(hook, 20, false);
+            Assert.AreEqual(1, InvokeMouse(hook, WM.WM_MOUSEMOVE, new Point(parked.X - 15, parked.Y), 0));
+            Assert.AreEqual((ID)101, Common.DesMachineID, "Caps Lock permits a deliberate return while the game still captures the pointer.");
+            WaitForInput(transport);
+            var exit = game.Wire.ToArray();
+            Assert.AreEqual(PackageType.HideMouse, ReadFrame(exit, exit.Length - Package.PACKAGE_SIZE).Type);
+        }
+        finally
+        {
+            held.Clear();
+            foreach (int key in previousKeys) held.Update(key, true);
+            PointerCapture.ResetForTest();
+            if (canRestorePosition) NativeMethods.SetCursorPos(nativePosition.X, nativePosition.Y);
+        }
+    }
+
+    [TestMethod]
+    public void NewerCaptureStateWinsAcrossTwoLiveConnectionsAndDoesNotAffectOtherPeers()
+    {
+        using var first = new QueuedPeer(202);
+        using var second = new QueuedPeer(202);
+        using var other = new QueuedPeer(303);
+        PointerCapture.ResetForTest();
+        try
+        {
+            DATA Notice(int sequence, bool capture) => new()
+            {
+                Type = PackageType.PointerCapture,
+                Des = (ID)101,
+                Md = new() { dwFlags = capture ? 1 : 0, WheelDelta = sequence, X = 100, Y = 200 },
+            };
+            PointerCapture.Receive(Notice(10, true), first.Peer);
+            PointerCapture.Receive(Notice(10, true), other.Peer);
+            Assert.IsTrue(PointerCapture.IsCaptured(202));
+            PointerCapture.Receive(Notice(12, false), second.Peer);
+            Assert.IsFalse(PointerCapture.IsCaptured(202));
+            Assert.AreEqual(new Point(100, 200), PointerCapture.TakeResume(202));
+            second.Peer.Status = SocketStatus.SendError;
+            PointerCapture.Receive(Notice(11, true), first.Peer);
+            Assert.IsFalse(PointerCapture.IsCaptured(202), "An older notice cannot undo a release when a sibling channel has closed.");
+            Assert.IsTrue(PointerCapture.IsCaptured(303));
+            PointerCapture.Receive(Notice(13, true), first.Peer);
+            Assert.IsTrue(PointerCapture.IsCaptured(202));
+            PointerCapture.PeerDisconnected(202);
+            PointerCapture.Receive(Notice(2, true), first.Peer);
+            Assert.IsTrue(PointerCapture.IsCaptured(202), "After losing all channels, a restarted peer can start a new sequence.");
+        }
+        finally { PointerCapture.ResetForTest(); }
+    }
+
+    [TestMethod]
     public void RecordedCapsLockReconnectRunsOncePerPressAndRespectsTheMasterSwitch()
     {
         var held = (HeldKeyChord)typeof(InputHook).GetField("easyMouseKeys", StaticFields)!.GetValue(null)!;

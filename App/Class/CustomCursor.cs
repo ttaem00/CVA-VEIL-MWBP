@@ -74,13 +74,13 @@ namespace MouseWithoutBorders.Class
         internal static void RenderMouseCursor(Point point)
         {
             var cursor = new NativeMethods.CURSORINFO { cbSize = Marshal.SizeOf<NativeMethods.CURSORINFO>() };
-            RenderMouseCursor(point, NativeMethods.GetCursorInfo(ref cursor) && (cursor.flags & 1) != 0);
+            RenderMouseCursor(point, PointerCapture.LocalCapture || !NativeMethods.GetCursorInfo(ref cursor) || cursor.flags != 0);
         }
 
-        internal static void RenderMouseCursor(Point point, bool nativeCursorShowing)
+        internal static void RenderMouseCursor(Point point, bool suppressFallback)
         {
             int x = point.X, y = point.Y;
-            if (!Setting.Values.DrawMouse || nativeCursorShowing || x == int.MinValue || y == int.MinValue)
+            if (!Setting.Values.DrawMouse || suppressFallback || x == int.MinValue || y == int.MinValue)
             {
                 Common.MouseCursorForm?.Hide();
                 return;

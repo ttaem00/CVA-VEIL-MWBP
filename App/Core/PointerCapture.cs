@@ -1,14 +1,9 @@
 // Copyright (c) Mouse Without Borders contributors. Licensed under the MIT license.
-// A program that hides the pointer (a 3D game steering its camera) reads how far the mouse moved,
-// not where the pointer is. Sent absolute positions, it keeps re-centring the pointer and turns the
-// camera by the distance to that position on every packet. While the controlled PC's pointer is
-// hidden, that PC says so, and the controlling PC sends movement as distances instead and does not
-// leave by the screen edge. Switching by hotkey and the emergency return are unaffected.
 using System;
+using System.Collections.Concurrent;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading;
-using System.Threading.Tasks;
 using MouseWithoutBorders.Class;
 
 namespace MouseWithoutBorders.Core;
@@ -22,103 +17,193 @@ internal static class PointerCapture
     private static readonly object ReportGate = new();
     private static long nextCheck;
     private static long nextRepeat;
-    private static bool reportedHidden;
+    private static bool reportedCapture;
+    private static bool localCapture;
     private static TcpSk reportedOn;
+    private static IntPtr sampledForeground;
+    private static Point? lastOffCenterRequest;
+    private static int recenterSamples;
+    private static bool wasOffCenter;
 
-    /// <summary>What to send now, if anything. A hidden pointer is repeated so that a controller
-    /// that reconnected, or missed the first notice, catches up; a visible one is said once.</summary>
-    internal static bool ShouldReport(bool hidden, bool reportedHidden, bool sameConnection, long now, long nextRepeat, bool acknowledged) =>
-        hidden != reportedHidden || !sameConnection && (hidden || reportedHidden) || hidden && !acknowledged && now >= nextRepeat;
+    internal static bool LocalCapture => Volatile.Read(ref localCapture);
 
-    /// <summary>Called for each mouse packet applied on this PC. Costs one time comparison;
-    /// the pointer state is read at most every <see cref="CheckIntervalMs"/>. A packet that already
-    /// carries a distance shows that the controller knows, so nothing is repeated to it.</summary>
-    internal static void Observe(ID controller, TcpSk connection, bool acknowledged)
+    /// <summary>Repeat either transition when the controller is still using the other mode.</summary>
+    internal static bool ShouldReport(bool captured, bool reportedCapture, bool sameConnection, long now, long nextRepeat, bool receivingDistances) =>
+        captured != reportedCapture || !sameConnection && (captured || receivingDistances)
+        || captured != receivingDistances && now >= nextRepeat;
+
+    /// <summary>Sample capture after applying input and tell the controller over its existing FIFO.
+    /// The same result tells the receiver whether to suppress its desktop cursor overlay.</summary>
+    internal static bool Observe(ID controller, TcpSk connection, bool receivingDistances, MOUSEDATA? requestedMove)
     {
         long now = Environment.TickCount64;
-        if (now < Interlocked.Read(ref nextCheck) || connection == null || controller == Common.MachineID) return;
-        Interlocked.Exchange(ref nextCheck, now + CheckIntervalMs);
-        bool hidden = IsPointerHidden();
-        Point pointer = default;
+        if (now < Interlocked.Read(ref nextCheck)) return LocalCapture;
         lock (ReportGate)
         {
-            if (!ShouldReport(hidden, reportedHidden, ReferenceEquals(connection, reportedOn), now, nextRepeat, acknowledged)) return;
-            reportedHidden = hidden; reportedOn = connection; nextRepeat = now + RepeatIntervalMs;
-        }
+            if (now < nextCheck) return localCapture;
+            Interlocked.Exchange(ref nextCheck, now + CheckIntervalMs);
+            var cursor = new NativeMethods.CURSORINFO { cbSize = Marshal.SizeOf<NativeMethods.CURSORINFO>() };
+            if (!NativeMethods.GetCursorInfo(ref cursor)) return localCapture;
+            bool captured = IsLocallyCaptured(cursor, requestedMove);
+            bool hideOverlay = captured && !localCapture;
+            Volatile.Write(ref localCapture, captured);
+            if (hideOverlay) CustomCursor.ShowFakeMouseCursor(int.MinValue, int.MinValue);
+            if (connection == null || controller == Common.MachineID ||
+                !ShouldReport(localCapture, reportedCapture, ReferenceEquals(connection, reportedOn), now, nextRepeat, receivingDistances))
+                return localCapture;
 
-        if (!hidden) _ = NativeMethods.GetCursorPos(ref pointer);
-        var desktop = MachineStuff.DesktopBounds;
-        var notice = new DATA { Type = PackageType.PointerCapture, Des = controller };
-        notice.Md.dwFlags = hidden ? 1 : 0;
-        if (!hidden && desktop != null && desktop.Right > desktop.Left && desktop.Bottom > desktop.Top)
-        {
-            // Where the pointer really is, so the controller resumes from there and not from
-            // wherever its own idea of the position was left when the pointer was hidden.
-            notice.Md.X = (int)Math.Clamp((long)(pointer.X - desktop.Left) * 65535 / (desktop.Right - desktop.Left), 0, 65535);
-            notice.Md.Y = (int)Math.Clamp((long)(pointer.Y - desktop.Top) * 65535 / (desktop.Bottom - desktop.Top), 0, 65535);
+            var notice = new DATA { Type = PackageType.PointerCapture, Des = controller };
+            notice.Md.dwFlags = localCapture ? 1 : 0;
+            // The relative-mode notice has no wheel action. Stamp observation order before
+            // enqueueing, since an older notice can drain later on a second live TCP channel.
+            int sequence = unchecked((int)now);
+            notice.Md.WheelDelta = sequence == 0 ? 1 : sequence;
+            var desktop = MachineStuff.DesktopBounds;
+            notice.Md.X = notice.Md.Y = -1;
+            if (!localCapture && desktop != null && desktop.Right > desktop.Left && desktop.Bottom > desktop.Top)
+            {
+                notice.Md.X = (int)Math.Clamp((long)(cursor.ptScreenPos.x - desktop.Left) * 65535 / (desktop.Right - desktop.Left), 0, 65535);
+                notice.Md.Y = (int)Math.Clamp((long)(cursor.ptScreenPos.y - desktop.Top) * 65535 / (desktop.Bottom - desktop.Top), 0, 65535);
+            }
+
+            // Enqueue under the sampling lock so a later release cannot overtake this notice.
+            if (Common.Sk?.EnqueueInput(notice, null) == true)
+            {
+                reportedCapture = localCapture;
+                reportedOn = connection;
+                nextRepeat = now + RepeatIntervalMs;
+                Logger.Log(localCapture ? "Foreground pointer capture detected; asking for relative movement."
+                    : "Foreground pointer capture ended; asking for absolute movement.");
+            }
+            return localCapture;
         }
-        else notice.Md.X = notice.Md.Y = -1;
-        Logger.Log(hidden ? "Pointer is hidden by the foreground program; asking for relative movement."
-            : "Pointer is visible again; absolute movement resumes.");
-        // Never send from the thread that applies input.
-        _ = Task.Run(() => Common.SkSend(notice, null, false));
     }
 
-    private static bool IsPointerHidden()
+    private static bool IsLocallyCaptured(NativeMethods.CURSORINFO cursor, MOUSEDATA? requestedMove)
     {
-        var cursor = new NativeMethods.CURSORINFO { cbSize = Marshal.SizeOf<NativeMethods.CURSORINFO>() };
-        // 0 is hidden; 1 is showing; 2 means Windows suppresses it for touch or pen, which is not a capture.
-        return NativeMethods.GetCursorInfo(ref cursor) && cursor.flags == 0;
+        var foreground = cursor.flags == 0 ? NativeMethods.GetForegroundWindow() : IntPtr.Zero;
+        if (foreground != sampledForeground)
+        {
+            sampledForeground = foreground;
+            recenterSamples = 0;
+            lastOffCenterRequest = null;
+            wasOffCenter = false;
+        }
+        if (foreground == IntPtr.Zero || foreground == NativeMethods.GetShellWindow() || foreground == NativeMethods.GetDesktopWindow())
+            return false;
+
+        // A game can confine the pointer to its window or to one monitor of a larger desktop.
+        var actual = new Point(cursor.ptScreenPos.x, cursor.ptScreenPos.y);
+        var desktop = MachineStuff.DesktopBounds;
+        if (desktop != null && NativeMethods.GetClipCursor(out var clip) &&
+            IsViewportClip(Rectangle.FromLTRB(desktop.Left, desktop.Top, desktop.Right, desktop.Bottom),
+                Rectangle.FromLTRB(clip.Left, clip.Top, clip.Right, clip.Bottom)))
+            return true;
+
+        // Some games recenter instead of clipping. A fullscreen window alone is not evidence:
+        // require two different off-center requests while the actual pointer stays at its center.
+        if (!NativeMethods.GetWindowRect(foreground, out var window)) return false;
+        var center = new Point(window.Left + (window.Right - window.Left) / 2, window.Top + (window.Bottom - window.Top) / 2);
+        Point? requestedPosition = requestedMove is { X: >= 0 and <= 65535, Y: >= 0 and <= 65535 } move && desktop != null
+            ? new Point(desktop.Left + (int)((long)move.X * (desktop.Right - desktop.Left) / 65535),
+                desktop.Top + (int)((long)move.Y * (desktop.Bottom - desktop.Top) / 65535))
+            : null;
+        return ObserveRecentering(actual, center, requestedPosition);
     }
+
+    internal static bool ObserveRecentering(Point actual, Point center, Point? requestedPosition)
+    {
+        if (!NearCenter(actual, center))
+        {
+            // A sample just after injecting a game delta can see the pointer before the next
+            // game frame recenters it. Require a second off-center sample before releasing.
+            if (recenterSamples >= 2 && !wasOffCenter)
+            {
+                wasOffCenter = true;
+                return true;
+            }
+            recenterSamples = 0;
+            lastOffCenterRequest = null;
+            return false;
+        }
+
+        wasOffCenter = false;
+        if (recenterSamples < 2 && requestedPosition is { } requested && !NearCenter(requested, center) &&
+            requested != lastOffCenterRequest)
+        {
+            recenterSamples = Math.Min(2, recenterSamples + 1);
+            lastOffCenterRequest = requested;
+        }
+
+        return recenterSamples >= 2;
+    }
+
+    private static bool NearCenter(Point point, Point center) =>
+        Math.Abs(point.X - center.X) <= 24 && Math.Abs(point.Y - center.Y) <= 24;
+
+    internal static bool IsViewportClip(Rectangle desktop, Rectangle clip) =>
+        clip.Width > 0 && clip.Height > 0 && clip != desktop && desktop.Contains(clip);
 
     // ---- Controlling PC: remember which peer asked, on which connection. ----
-    private sealed record Capture(uint Peer, TcpSk Connection);
-    internal sealed record Resume(uint Peer, int X, int Y);
+    private sealed record Capture(TcpSk Connection, int Sequence, bool Active, Point? Resume);
+    private static readonly ConcurrentDictionary<uint, Capture> PeerModes = new();
 
-    private static volatile Capture captured;
-    private static Resume pendingResume;
+    internal static bool IsCaptured(uint peer) => PeerModes.TryGetValue(peer, out var state)
+        && state.Active && IsLive(state.Connection);
 
-    /// <summary>True while that PC's pointer is hidden, according to a connection that is still alive.
-    /// Read on the hook thread for every mouse event: two field reads and no call into Windows.</summary>
-    internal static bool IsCaptured(uint peer)
-    {
-        var state = captured;
-        return state != null && state.Peer == peer && state.Connection.Status == SocketStatus.Connected && state.Connection.BackingSocket != null;
-    }
+    private static bool IsLive(TcpSk connection) => connection.Status == SocketStatus.Connected && connection.BackingSocket != null;
 
     /// <summary>Where that PC's pointer was when it became visible again; taken once, on the hook thread.</summary>
-    internal static Resume TakeResume(uint peer)
+    internal static Point? TakeResume(uint peer)
     {
-        var resume = Volatile.Read(ref pendingResume);
-        return resume != null && resume.Peer == peer && ReferenceEquals(Interlocked.CompareExchange(ref pendingResume, null, resume), resume) ? resume : null;
+        return PeerModes.TryGetValue(peer, out var state) && state.Resume.HasValue && IsLive(state.Connection) &&
+            PeerModes.TryUpdate(peer, state with { Resume = null }, state) ? state.Resume : null;
     }
 
     /// <summary>Called on a socket thread when a PC reports its pointer state.</summary>
     internal static void Receive(DATA package, TcpSk connection)
     {
-        if (package.Des != Common.MachineID || connection == null || connection.MachineId == 0 || connection.MachineId == (uint)Common.MachineID) return;
+        if (package.Des != Common.MachineID || connection == null || connection.MachineId == 0 ||
+            connection.MachineId == (uint)Common.MachineID || !IsLive(connection) || package.Md.dwFlags is not (0 or 1)) return;
         uint peer = connection.MachineId;
-        if (package.Md.dwFlags == 1)
+        bool active = package.Md.dwFlags == 1;
+        int sequence = package.Md.WheelDelta; // RC19 sent zero and remains accepted.
+        bool wasActive;
+        lock (PeerModes)
         {
-            bool already = IsCaptured(peer);
-            captured = new Capture(peer, connection);
-            if (!already) Logger.Log("Peer pointer is hidden: sending relative movement and holding the screen edge.");
-            return;
+            if (!IsLive(connection)) return;
+            bool known = PeerModes.TryGetValue(peer, out var state);
+            if (known && state.Sequence != 0 && (sequence == 0 || unchecked(sequence - state.Sequence) <= 0)) return;
+            wasActive = known && state.Active;
+            Point? resume = !active && (wasActive || known && state.Resume.HasValue) && package.Md.X is >= 0 and <= 65535 && package.Md.Y is >= 0 and <= 65535
+                ? new Point(package.Md.X, package.Md.Y)
+                : null;
+            PeerModes[peer] = new Capture(connection, sequence, active, resume);
         }
+        if (active != wasActive) Logger.Log(active ? "Peer pointer is captured: sending relative movement. Hold the configured edge key to switch."
+            : "Peer pointer capture ended: absolute movement resumes.");
+    }
 
-        var state = captured;
-        if (state == null || state.Peer != peer) return;
-        captured = null;
-        if (package.Md.X is >= 0 and <= 65535 && package.Md.Y is >= 0 and <= 65535)
-            Volatile.Write(ref pendingResume, new Resume(peer, package.Md.X, package.Md.Y));
-        Logger.Log("Peer pointer is visible: absolute movement resumes.");
+    internal static void PeerDisconnected(uint peer)
+    {
+        lock (PeerModes) PeerModes.TryRemove(peer, out _);
+    }
+
+    internal static void TransportClosed()
+    {
+        lock (PeerModes) PeerModes.Clear();
     }
 
     internal static void ResetForTest()
     {
-        captured = null; Volatile.Write(ref pendingResume, null);
-        lock (ReportGate) { reportedHidden = false; reportedOn = null; nextRepeat = 0; }
-        Interlocked.Exchange(ref nextCheck, 0);
+        TransportClosed();
+        lock (ReportGate)
+        {
+            reportedCapture = false; reportedOn = null; nextRepeat = 0;
+            sampledForeground = IntPtr.Zero; lastOffCenterRequest = null; recenterSamples = 0; wasOffCenter = false;
+            Volatile.Write(ref localCapture, false);
+            Interlocked.Exchange(ref nextCheck, 0);
+        }
     }
 
     // ---- Wire form of a distance: the existing relative marker of the mouse packet. ----
