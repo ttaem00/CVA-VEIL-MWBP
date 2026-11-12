@@ -61,7 +61,7 @@ internal sealed class FirstLaunchForm : System.Windows.Forms.Form
         if (PrivilegedInput.ServiceModeAllowed)
         {
             AddText("Keep control when Windows asks for approval", 8, bold: true);
-            AddText("Install a SYSTEM input service so paired PCs can control administrator apps and Windows approval screens. Other apps in this Windows account could misuse this access. Windows administrator approval is required.", 0);
+            AddText("Install a SYSTEM input service so paired PCs can control administrator apps and Windows approval screens. Other apps in this Windows account could misuse this access. You can block approval, sign-in and lock screens later in settings. Windows administrator approval is required.", 0);
         }
         else AddText("Windows policy allows only normal mouse, keyboard and file sharing.", 0);
         status = AddText(""); status.Name = "installStatus"; status.Visible = false;

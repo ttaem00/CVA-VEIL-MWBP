@@ -508,8 +508,10 @@ internal partial class FrmMatrix
         var content = Section("MWBP on this PC");
         var administratorStatus = Explanation(""); administratorStatus.Name = "administratorControlStatus";
         content.Add(administratorStatus);
-        const string permission = "Allow this Windows account and paired PCs to control administrator apps and Windows approval screens. Other programs running in this account could misuse MWBP to operate approval screens. Windows administrator approval is required. Your connections and layout are kept.";
-        Button protectedInput = null, disableProtectedInput = null;
+        const string permission = "Allow this Windows account and paired PCs to control administrator apps and Windows approval screens. Other programs running in this account could misuse MWBP to operate approval screens. You can block approval, sign-in and lock screens separately after installing. Windows administrator approval is required. Your connections and layout are kept.";
+        const string allowScreens = "Allow paired PCs to operate Windows approval (UAC), sign-in and lock screens on this PC again? Any program running in this Windows account could then use MWBP to approve administrator prompts without you. Windows administrator approval is required.";
+        const string blockScreens = "Block remote control of Windows approval (UAC), sign-in and lock screens on this PC? Administrator apps stay controllable.";
+        Button protectedInput = null, disableProtectedInput = null, approvalScreens = null;
         void RefreshAdministratorControl()
         {
             protectedInput.Text = Ui.Text(PortableApplication.IsInstalledCopy ? "Repair installation…" : "Install MWBP…");
@@ -529,6 +531,7 @@ internal partial class FrmMatrix
             {
                 administratorStatus.Text = serviceAllowed ? Ui.Text("Installation status is unavailable. You can still install or repair MWBP.") : policyStatus;
                 toolTip.SetToolTip(administratorStatus, error.Message);
+                approvalScreens.Visible = false;
                 return;
             }
             administratorStatus.Text = !serviceAllowed ? policyStatus : Ui.Text(!PortableApplication.IsInstalledCopy
@@ -538,6 +541,26 @@ internal partial class FrmMatrix
                     : "MWBP installed · administrator input service stopped. Choose Repair installation.");
             disableProtectedInput.Visible = state.HasValue;
             toolTip.SetToolTip(administratorStatus, null);
+            // Shown only where the service exists: the setting is enforced by that service.
+            bool screens = PrivilegedInput.ApprovalScreensAllowed();
+            approvalScreens.Visible = serviceAllowed && state.HasValue && PortableApplication.IsInstalledCopy;
+            approvalScreens.Tag = screens;
+            approvalScreens.Text = Ui.Text(screens ? "Block Windows approval screens…" : "Allow Windows approval screens…");
+            approvalScreens.AccessibleName = approvalScreens.Text;
+            SetOptionTip(approvalScreens, null, screens ? blockScreens : allowScreens);
+            if (approvalScreens.Visible)
+                administratorStatus.Text += " · " + Ui.Text(screens ? "Windows approval screens allowed" : "Windows approval screens blocked");
+        }
+        async void ChangeApprovalScreens(object sender, EventArgs args)
+        {
+            bool allow = approvalScreens.Tag is not true;
+            if (MessageBox.Show(this, Ui.Text(allow ? allowScreens : blockScreens),
+                Ui.Text(allow ? "Allow Windows approval screens…" : "Block Windows approval screens…"),
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+            content.Enabled = false;
+            try { await PortableApplication.SetApprovalScreensAsync(allow); }
+            catch (Exception error) { SettingsError(error); }
+            finally { content.Enabled = true; RefreshAdministratorControl(); }
         }
         async void ChangeAdministratorControl(object sender, EventArgs args)
         {
@@ -570,7 +593,9 @@ internal partial class FrmMatrix
         disableProtectedInput = SettingsButton("Disable administrator control…", ChangeAdministratorControl);
         disableProtectedInput.Name = "disableAdministratorControl"; disableProtectedInput.Visible = false;
         SetOptionTip(disableProtectedInput, null, "Disable administrator control on this PC? Paired PCs will no longer control administrator apps or Windows approval screens. Normal sharing and your connections are kept.");
-        content.Add(Actions(protectedInput, disableProtectedInput));
+        approvalScreens = SettingsButton("Allow Windows approval screens…", ChangeApprovalScreens);
+        approvalScreens.Name = "approvalScreens"; approvalScreens.Visible = false;
+        content.Add(Actions(protectedInput, disableProtectedInput, approvalScreens));
         content.Add(SettingsHelpLink("About administrator control…", permission));
 
         var management = Section("Manage this installation");

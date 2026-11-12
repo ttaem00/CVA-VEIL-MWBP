@@ -195,6 +195,14 @@ internal static class PortableApplication
         if (installer.ExitCode != 0) throw new IOException("Protected input removal did not complete (" + installer.ExitCode + ").");
     }
 
+    internal static async Task SetApprovalScreensAsync(bool allow)
+    {
+        using var setup = Process.Start(PortableInstallLifecycle.CreateApprovalScreensStartInfo(allow))
+            ?? throw new IOException("Windows did not start approval screen setup.");
+        await setup.WaitForExitAsync();
+        if (setup.ExitCode != 0) throw new IOException("Approval screen control was not changed (" + setup.ExitCode + ").");
+    }
+
     internal static bool IsStartWithWindowsEnabled() => IsStartWithWindowsEnabled(CurrentExecutablePath);
 
     private static bool IsStartWithWindowsEnabled(params string[] executables)
