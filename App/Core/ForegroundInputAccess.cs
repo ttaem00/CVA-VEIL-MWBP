@@ -13,39 +13,71 @@ namespace MouseWithoutBorders.Core;
 internal static class ForegroundInputAccess
 {
     private static readonly int? ownIntegrity = ReadOwnIntegrity();
-    [ThreadStatic] private static uint cachedProcessId;
-    [ThreadStatic] private static SafeProcessHandle cachedProcess;
-    [ThreadStatic] private static bool cachedRequiresBroker;
-    [ThreadStatic] private static bool cachedIntegrityKnown;
-    [ThreadStatic] private static long retryUnknownAt;
+
+    private sealed class Classification
+    {
+        internal uint ProcessId;
+        internal SafeProcessHandle Process;
+        internal bool RequiresBroker;
+        internal bool IntegrityKnown;
+        internal long RetryUnknownAt;
+    }
+
+    // Keyboard input goes to the foreground window; a button press or wheel goes to the window
+    // under the pointer, which need not be the foreground one. Each has its own cached answer.
+    [ThreadStatic] private static Classification foregroundCache;
+    [ThreadStatic] private static Classification pointerCache;
 
     internal static bool RequiresBroker()
     {
         IntPtr foreground = NativeMethods.GetForegroundWindow();
         if (foreground == IntPtr.Zero || NativeMethods.GetWindowThreadProcessId(foreground, out uint processId) == 0)
             return true; // Includes a desktop transition; the worker attaches to the input desktop.
-        if (processId == cachedProcessId && (cachedProcess == null
-            || NativeMethods.WaitForSingleObject(cachedProcess.DangerousGetHandle(), 0) == 258)
-            && (cachedIntegrityKnown || Environment.TickCount64 < retryUnknownAt))
-            return cachedRequiresBroker;
+        return Classify(foregroundCache ??= new Classification(), processId, "foreground");
+    }
 
-        cachedProcess?.Dispose();
-        cachedProcess = null;
-        cachedProcessId = processId;
+    /// <summary>
+    /// True when the window that a button press or wheel at this screen point would reach belongs
+    /// to a process of higher, or unreadable, integrity. Windows drops such input from this app
+    /// without reporting it, so clicking an administrator window that is not in front did nothing
+    /// and could not bring it to the front either. Not consulted for movement.
+    /// </summary>
+    internal static bool PointerTargetRequiresBroker(int x, int y)
+    {
+        IntPtr window = WindowFromPoint(new NativeMethods.POINT { x = x, y = y });
+        if (window == IntPtr.Zero) return false;
+        IntPtr root = GetAncestor(window, 2); // GA_ROOT
+        if (NativeMethods.GetWindowThreadProcessId(root != IntPtr.Zero ? root : window, out uint processId) == 0) return false;
+        return Classify(pointerCache ??= new Classification(), processId, "pointer target");
+    }
+
+    private static bool Classify(Classification cache, uint processId, string role)
+    {
+        if (processId == cache.ProcessId && (cache.Process == null
+            || NativeMethods.WaitForSingleObject(cache.Process.DangerousGetHandle(), 0) == 258)
+            && (cache.IntegrityKnown || Environment.TickCount64 < cache.RetryUnknownAt))
+            return cache.RequiresBroker;
+
+        cache.Process?.Dispose();
+        cache.Process = null;
+        cache.ProcessId = processId;
         // Retaining a waitable handle prevents a recycled PID from reusing stale classification.
         IntPtr handle = NativeMethods.OpenProcess(0x00101000, false, processId); // SYNCHRONIZE | QUERY_LIMITED_INFORMATION
         int? targetIntegrity = null;
         if (handle != IntPtr.Zero)
         {
-            cachedProcess = new SafeProcessHandle(handle, true);
+            cache.Process = new SafeProcessHandle(handle, true);
             targetIntegrity = ReadProcessIntegrity(handle);
         }
-        cachedIntegrityKnown = ownIntegrity.HasValue && targetIntegrity.HasValue;
-        retryUnknownAt = cachedIntegrityKnown ? 0 : Environment.TickCount64 + 1000;
-        cachedRequiresBroker = !cachedIntegrityKnown || targetIntegrity > ownIntegrity;
-        Logger.Log($"Input foreground classification: localIL={ownIntegrity?.ToString() ?? "unknown"}; targetIL={targetIntegrity?.ToString() ?? "unknown"}; protected={cachedRequiresBroker}.");
-        return cachedRequiresBroker;
+        cache.IntegrityKnown = ownIntegrity.HasValue && targetIntegrity.HasValue;
+        cache.RetryUnknownAt = cache.IntegrityKnown ? 0 : Environment.TickCount64 + 1000;
+        cache.RequiresBroker = !cache.IntegrityKnown || targetIntegrity > ownIntegrity;
+        Logger.Log($"Input {role} classification: localIL={ownIntegrity?.ToString() ?? "unknown"}; targetIL={targetIntegrity?.ToString() ?? "unknown"}; protected={cache.RequiresBroker}.");
+        return cache.RequiresBroker;
     }
+
+    [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(NativeMethods.POINT point);
+    [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr window, uint flags);
 
     private static int? ReadOwnIntegrity()
     {

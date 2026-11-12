@@ -130,7 +130,30 @@ namespace MouseWithoutBorders.Class
         }
 
         private static uint SendInputEx(NativeMethods.INPUT64 input)
-            => SendInputOnDesktop(input, ForegroundInputAccess.RequiresBroker());
+            => SendInputOnDesktop(input, ForegroundInputAccess.RequiresBroker()
+                || (PressesOrScrolls(input) && TryPointerTarget(input, MachineStuff.DesktopBounds, out int x, out int y)
+                    && ForegroundInputAccess.PointerTargetRequiresBroker(x, y)));
+
+        private const int PressAndWheelFlags = (int)(NativeMethods.MOUSEEVENTF.LEFTDOWN | NativeMethods.MOUSEEVENTF.RIGHTDOWN
+            | NativeMethods.MOUSEEVENTF.MIDDLEDOWN | NativeMethods.MOUSEEVENTF.XDOWN | NativeMethods.MOUSEEVENTF.WHEEL | NativeMethods.MOUSEEVENTF.HWHEEL);
+
+        // A press or wheel is delivered to the window under the pointer. Movement and releases are
+        // not looked up: movement stays on the direct path, and a release follows its press.
+        internal static bool PressesOrScrolls(NativeMethods.INPUT64 input) =>
+            input.type == 0 && (input.mi.dwFlags & PressAndWheelFlags) != 0;
+
+        // Button and wheel packets carry their absolute position (0..65535 over the desktop).
+        internal static bool TryPointerTarget(NativeMethods.INPUT64 input, MyRectangle desktop, out int x, out int y)
+        {
+            x = y = 0;
+            const int absolute = (int)(NativeMethods.MOUSEEVENTF.MOVE | NativeMethods.MOUSEEVENTF.ABSOLUTE);
+            if (desktop == null || (input.mi.dwFlags & absolute) != absolute) return false;
+            int width = desktop.Right - desktop.Left, height = desktop.Bottom - desktop.Top;
+            if (width <= 0 || height <= 0) return false;
+            x = desktop.Left + (int)((long)input.mi.dx * width / 65535);
+            y = desktop.Top + (int)((long)input.mi.dy * height / 65535);
+            return true;
+        }
 
         private static uint SendInputOnDesktop(NativeMethods.INPUT64 input, bool protectedForeground)
         {
