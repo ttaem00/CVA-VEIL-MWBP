@@ -777,7 +777,8 @@ public sealed class MonitorInputIntegrationTests
         }
         finally { release.Set(); WaitForInput(transport); }
         var frames = wire.ToArray().Chunk(32).Select(bytes => new DATA(bytes)).ToArray();
-        CollectionAssert.AreEqual(new[] { 1, 3, 3, 5, 6, 6, -Event.MOVE_MOUSE_RELATIVE - 1, -Event.MOVE_MOUSE_RELATIVE - 2, 6 },
+        // Positions are replaced by the latest one; unsent distances add up (1 + 2) so none is lost.
+        CollectionAssert.AreEqual(new[] { 1, 3, 3, 5, 6, 6, -Event.MOVE_MOUSE_RELATIVE - 3, 6 },
             frames.Where(frame => ((uint)frame.Type & 0xff) == (uint)PackageType.Mouse).Select(frame => frame.Md.X).ToArray());
         Assert.AreEqual((uint)PackageType.Keyboard, (uint)frames[4].Type & 0xff);
         Assert.AreEqual(WM.WM_LBUTTONDOWN, frames[2].Md.dwFlags);

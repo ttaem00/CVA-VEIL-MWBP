@@ -30,6 +30,10 @@ internal enum PackageType // : int
     Heartbeat_ex_l2 = 52,
     Heartbeat_ex_l3 = 53,
 
+    // The controlled PC's pointer was hidden, or shown again, by its foreground program.
+    // A small package; builds that do not know it log it as invalid and carry on.
+    PointerCapture = 54,
+
     Clipboard = 69,
     ClipboardDragDrop = 70,
     ClipboardDragDropEnd = 71,

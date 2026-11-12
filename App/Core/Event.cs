@@ -140,6 +140,43 @@ internal static class Event
             return false;
         }
 
+        if (peer != (uint)Common.MachineID)
+        {
+            if (PointerCapture.IsCaptured(peer))
+            {
+                // That PC's program has hidden the pointer and reads distances. Send how far the
+                // mouse moved; do not advance a position or leave by the screen edge. Buttons and
+                // wheels act where the pointer is, without moving it.
+                activationPending = false;
+                if (e.dwFlags == WM.WM_MOUSEMOVE && dx == 0 && dy == 0) return true;
+                MousePackage.Des = (ID)peer;
+                MousePackage.Type = PackageType.Mouse;
+                MousePackage.Md = e;
+                bool move = e.dwFlags == WM.WM_MOUSEMOVE;
+                if (move) { myLastX = e.X; myLastY = e.Y; }
+                MousePackage.Md.X = move ? PointerCapture.Encode(Math.Clamp(dx, -PointerCapture.MaxDistance, PointerCapture.MaxDistance)) : MOVE_MOUSE_RELATIVE;
+                MousePackage.Md.Y = move ? PointerCapture.Encode(Math.Clamp(dy, -PointerCapture.MaxDistance, PointerCapture.MaxDistance)) : MOVE_MOUSE_RELATIVE;
+                Common.SkSend(MousePackage, null, false);
+                return Common.DesMachineID != Common.MachineID;
+            }
+
+            if (PointerCapture.TakeResume(peer) is { } resume)
+            {
+                // The pointer is visible again: continue from where it really is on that PC.
+                Rectangle peerDesktop = Rectangle.Empty;
+                foreach (var monitor in layout.Monitors)
+                    if (monitor.Key.Peer == peer) peerDesktop = peerDesktop.IsEmpty ? monitor.NativeBounds : Rectangle.Union(peerDesktop, monitor.NativeBounds);
+                if (!peerDesktop.IsEmpty)
+                {
+                    var point = new Point(peerDesktop.Left + (int)((long)resume.X * peerDesktop.Width / 65535),
+                        peerDesktop.Top + (int)((long)resume.Y * peerDesktop.Height / 65535));
+                    foreach (var monitor in layout.Monitors)
+                        if (monitor.Key.Peer == peer && monitor.NativeBounds.Contains(point))
+                        { activeMonitor = monitor.Key; monitorPoint = point; break; }
+                }
+            }
+        }
+
         bool allowSharing = IsSwitchingByMouseEnabled();
         if (peer == (uint)Common.MachineID && !allowSharing)
         {

@@ -142,11 +142,20 @@ namespace MouseWithoutBorders.Class
         internal static bool PressesOrScrolls(NativeMethods.INPUT64 input) =>
             input.type == 0 && (input.mi.dwFlags & PressAndWheelFlags) != 0;
 
-        // Button and wheel packets carry their absolute position (0..65535 over the desktop).
+        // Button and wheel packets carry their absolute position (0..65535 over the desktop);
+        // one without a position acts where the pointer already is.
         internal static bool TryPointerTarget(NativeMethods.INPUT64 input, MyRectangle desktop, out int x, out int y)
         {
             x = y = 0;
             const int absolute = (int)(NativeMethods.MOUSEEVENTF.MOVE | NativeMethods.MOUSEEVENTF.ABSOLUTE);
+            if ((input.mi.dwFlags & (int)NativeMethods.MOUSEEVENTF.MOVE) == 0)
+            {
+                System.Drawing.Point pointer = default;
+                if (!NativeMethods.GetCursorPos(ref pointer)) return false;
+                x = pointer.X; y = pointer.Y;
+                return true;
+            }
+
             if (desktop == null || (input.mi.dwFlags & absolute) != absolute) return false;
             int width = desktop.Right - desktop.Left, height = desktop.Bottom - desktop.Top;
             if (width <= 0 || height <= 0) return false;
@@ -248,6 +257,24 @@ namespace MouseWithoutBorders.Class
             }
 
             return rv;
+        }
+
+        // A button or wheel applied where the pointer already is. Used when the packet carries no
+        // position: a release owed after a disconnect, or any press while the foreground program
+        // has hidden the pointer and a movement would turn its camera.
+        internal static uint SendMouseAtPointer(MOUSEDATA md)
+        {
+            NativeMethods.INPUT64 input = default;
+            input.type = 0;
+            input.mi = AtPointer(MouseInput(md));
+            return input.mi.dwFlags == 0 ? 0 : SendInputEx(input);
+        }
+
+        internal static NativeMethods.MOUSEINPUT AtPointer(NativeMethods.MOUSEINPUT input)
+        {
+            input.dwFlags &= ~(int)(NativeMethods.MOUSEEVENTF.MOVE | NativeMethods.MOUSEEVENTF.ABSOLUTE | NativeMethods.MOUSEEVENTF.VIRTUALDESK);
+            input.dx = input.dy = 0;
+            return input;
         }
 
         // Button/wheel packets carry their own arrival, even if no MOVE preceded them.
