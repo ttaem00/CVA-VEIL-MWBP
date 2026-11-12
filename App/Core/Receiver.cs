@@ -171,49 +171,42 @@ internal static class Receiver
 
                     if (DragDrop.HandleCancelMouse(package.Md.dwFlags)) return;
 
-                    if (Math.Abs(package.Md.X) >= Event.MOVE_MOUSE_RELATIVE && Math.Abs(package.Md.Y) >= Event.MOVE_MOUSE_RELATIVE)
+                    bool relative = Math.Abs((long)package.Md.X) >= Event.MOVE_MOUSE_RELATIVE
+                        && Math.Abs((long)package.Md.Y) >= Event.MOVE_MOUSE_RELATIVE;
+                    MOUSEDATA? requestedMove = null;
+                    if (relative)
                     {
                         if (package.Md.dwFlags == WM.WM_MOUSEMOVE)
                         {
-                            InputSimulation.MoveMouseRelative(
-                                package.Md.X < 0 ? package.Md.X + Event.MOVE_MOUSE_RELATIVE : package.Md.X - Event.MOVE_MOUSE_RELATIVE,
-                                package.Md.Y < 0 ? package.Md.Y + Event.MOVE_MOUSE_RELATIVE : package.Md.Y - Event.MOVE_MOUSE_RELATIVE);
-                            _ = NativeMethods.GetCursorPos(ref lastXY);
-
-                            Point p = MachineStuff.MoveToMyNeighbourIfNeeded(lastXY.X, lastXY.Y, Common.MachineID);
-
-                            if (!p.IsEmpty)
-                            {
-                                Clipboard.HasSwitchedMachineSinceLastCopy = true;
-
-                                Logger.LogDebug(string.Format(
-                                    CultureInfo.CurrentCulture,
-                                    "***** Controlled Machine: newDesMachineIdEx set = [{0}]. Mouse is now at ({1},{2})",
-                                    MachineStuff.newDesMachineIdEx,
-                                    lastXY.X,
-                                    lastXY.Y));
-
-                                Common.SendNextMachine(package.Src, MachineStuff.newDesMachineIdEx, p);
-                            }
+                            // A distance. The controller owns routing between PCs, so this PC
+                            // never chooses a neighbour from where its pointer ended up.
+                            if (PointerCapture.IsRelativeMove(package))
+                                InputSimulation.MoveMouseRelative(PointerCapture.Decode(package.Md.X), PointerCapture.Decode(package.Md.Y));
                         }
                         else
                         {
-                            _ = NativeMethods.GetCursorPos(ref lastXY);
-                            var desktop = MachineStuff.DesktopBounds;
-                            package.Md.X = (int)((long)(lastXY.X - desktop.Left) * 65535 / (desktop.Right - desktop.Left));
-                            package.Md.Y = (int)((long)(lastXY.Y - desktop.Top) * 65535 / (desktop.Bottom - desktop.Top));
-                            _ = InputSimulation.SendMouse(package.Md);
+                            // A button or wheel "where the pointer is": apply it without a movement.
+                            _ = InputSimulation.SendMouseAtPointer(package.Md);
                         }
                     }
                     else
                     {
-                        _ = InputSimulation.SendMouse(package.Md);
-                        _ = NativeMethods.GetCursorPos(ref lastXY);
+                        uint applied = InputSimulation.SendMouse(package.Md);
+                        if (applied != 0 && package.Md.dwFlags == WM.WM_MOUSEMOVE) requestedMove = package.Md;
                     }
 
-                    Common.LastX = lastXY.X;
-                    Common.LastY = lastXY.Y;
-                    CustomCursor.ShowFakeMouseCursor(Common.LastX, Common.LastY);
+                    bool captured = PointerCapture.Observe(package.Src, package.Des == Common.MachineID ? tcp : null,
+                        relative && package.Md.dwFlags == WM.WM_MOUSEMOVE, requestedMove);
+                    if (NativeMethods.GetCursorPos(ref lastXY))
+                    {
+                        Common.LastX = lastXY.X;
+                        Common.LastY = lastXY.Y;
+                        if (!captured) CustomCursor.ShowFakeMouseCursor(Common.LastX, Common.LastY);
+                    }
+                    else
+                    {
+                        CustomCursor.ShowFakeMouseCursor(int.MinValue, int.MinValue);
+                    }
                 }
 
                 DragDrop.DragDropStep01(package.Md.dwFlags);
@@ -419,9 +412,13 @@ internal static class Receiver
 
                 break;
 
+            case PackageType.PointerCapture:
+                PointerCapture.Receive(package, tcp);
+                break;
+
             case PackageType.HideMouse:
                 Clipboard.HasSwitchedMachineSinceLastCopy = true;
-                Common.HideMouseCursor(true);
+                Common.HideMouseCursor(!PointerCapture.LocalCapture);
                 Helper.MainFormDotEx(false);
                 InitAndCleanup.ReleaseAllKeys();
                 break;

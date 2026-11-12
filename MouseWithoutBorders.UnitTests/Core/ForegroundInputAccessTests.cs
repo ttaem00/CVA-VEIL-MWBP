@@ -65,9 +65,16 @@ public sealed class ForegroundInputAccessTests
         input.mi.dx = 32768; input.mi.dy = 32768;
         Assert.IsTrue(InputSimulation.TryPointerTarget(input, desktop, out x, out y));
         Assert.IsTrue(Math.Abs(x) <= 1 && Math.Abs(y) <= 1, $"{x},{y}");
-        // Without an absolute position, or without a known desktop, nothing is looked up.
+        // A press without a position acts where the pointer already is.
         input.mi.dwFlags = 0x0002;
+        System.Drawing.Point pointer = default;
+        Assert.IsTrue(NativeMethods.GetCursorPos(ref pointer));
+        Assert.IsTrue(InputSimulation.TryPointerTarget(input, desktop, out x, out y));
+        Assert.IsTrue(Math.Abs(x - pointer.X) <= 50 && Math.Abs(y - pointer.Y) <= 50, "The pointer may move slightly during the test.");
+        // A relative movement combined with a press has no position to look up.
+        input.mi.dwFlags = 0x0001 | 0x0002;
         Assert.IsFalse(InputSimulation.TryPointerTarget(input, desktop, out _, out _));
+        // Without a known desktop an absolute position cannot be converted.
         input.mi.dwFlags = 0x0001 | 0x8000 | 0x0002;
         Assert.IsFalse(InputSimulation.TryPointerTarget(input, null!, out _, out _));
         Assert.IsFalse(InputSimulation.TryPointerTarget(input, new MyRectangle(), out _, out _));
