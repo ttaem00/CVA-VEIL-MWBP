@@ -4,10 +4,10 @@
 <p align="center"><strong>PC는 여러 대. 마우스는 하나.</strong><br>키보드·클립보드·파일도 함께.</p>
 
 <p align="center">
-  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/download/mwb-v1.2.0-rc.17/VEIL-MWBP-Setup.exe"><strong>Windows x64 다운로드 ↓</strong></a>
+  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/download/mwb-v1.2.0-rc.22/VEIL-MWBP-Setup.exe"><strong>Windows x64 다운로드 ↓</strong></a>
   &nbsp;·&nbsp; <a href="https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/">소개 페이지 ↗</a>
 </p>
-<p align="center"><a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.17">정식 배포 1.2.0-rc.17 · 변경 사항</a> · Windows 11 x64에서 확인</p>
+<p align="center"><a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.22">정식 배포 1.2.0-rc.22 · 변경 사항</a> · Windows 11 x64에서 확인</p>
 
 ## 시작하기
 
@@ -88,7 +88,7 @@
 
 설치 파일에 제작자를 확인하는 디지털 서명이 없기 때문입니다. Windows가 게시자를 확인하지 못해 표시하는 안내입니다.
 
-설치 전에 [다운로드 파일 정보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.17)에서 파일 이름과 출처를 확인하세요.
+설치 전에 [다운로드 파일 정보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.22)에서 파일 이름과 출처를 확인하세요.
 
 </details>
 

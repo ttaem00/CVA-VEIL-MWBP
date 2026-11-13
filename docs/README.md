@@ -2,7 +2,7 @@
 
 `index.html`과 `styles.css`를 그대로 제공하는 정적 사이트입니다. Node·번들러·JavaScript·외부 글꼴·사용자 추적을 사용하지 않습니다. GitHub Pages의 `main` 브랜치 `/docs` 게시를 대상으로 하며, 실제 Pages 설정·배포는 저장소 관리자가 별도로 수행합니다.
 
-- 다운로드와 릴리스 링크는 `mwb-v1.2.0-rc.17`에 명시적으로 고정합니다. prerelease를 건너뛰는 `latest` 링크로 바꾸지 않습니다.
+- 다운로드와 릴리스 링크는 `mwb-v1.2.0-rc.22`에 명시적으로 고정합니다. prerelease를 건너뛰는 `latest` 링크로 바꾸지 않습니다.
 - VEIL은 공통 V를 쓰며, MWBP의 오른쪽 아래 마우스 표식은 여러 PC에서 공유하는 입력을 뜻합니다. `assets/veil-mwbp-color.svg`와 `assets/veil-mwbp-micro.svg`는 CVA 브랜드 정본 `docs/design/cva-brand-v1/media/icons/veil/`의 정확한 사본입니다. 원본 이미지를 크롭하거나 V를 제품마다 다시 그리지 않습니다.
 - `assets/veil.png`와 `App/Veil.png`는 같은 512×512 RGBA 파생본입니다. `App/Veil.ico`는 16·20·24·32·40·48·64·128·256px를 포함하며 16·20px에는 micro를 사용합니다. 생성 원본·파생 파일 SHA256은 [veil-family-source.json](assets/veil-family-source.json)에 보존합니다. 앱·설치 EXE와 사이트 favicon(`assets/veil.ico`)은 같은 ICO를 소비합니다. renderer는 authoring 전용이며 앱 실행 의존성이 아닙니다.
 - `assets/mwbp-settings-anonymized.png`는 사용자가 제공한 RC10 실사용 캡처를 기반으로 PC 이름을 일반 이름으로 바꾸고 창 바깥 흔적을 제거한 **익명화 편집본**입니다. 내장 이미지 편집 도구로 확대·보정됐으며 원본 픽셀을 그대로 보존한 캡처로 설명하지 않습니다. 배치·모니터 번호·연결 상태·버튼 구성을 원본과 대조했고, 원본 캡처와 개인 PC 이름·경로는 배포하지 않습니다. README와 사이트는 같은 이미지를 소비하며, 크게 보기로 전체 화면을 확인할 수 있습니다.
