@@ -4,10 +4,10 @@
 <p align="center"><strong>PC는 여러 대. 마우스는 하나.</strong><br>키보드·클립보드·파일도 함께.</p>
 
 <p align="center">
-  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/download/mwb-v1.2.0-rc.18/VEIL-MWBP-Setup.exe"><strong>Windows x64 다운로드 ↓</strong></a>
+  <a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/download/mwb-v1.2.0-rc.17/VEIL-MWBP-Setup.exe"><strong>Windows x64 다운로드 ↓</strong></a>
   &nbsp;·&nbsp; <a href="https://ttaem00.github.io/CVA-VEIL-Mouse_Without_Border_Plus/">소개 페이지 ↗</a>
 </p>
-<p align="center"><a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.18">버전 1.2.0-rc.18 · 변경 사항</a> · Windows 11 x64에서 확인</p>
+<p align="center"><a href="https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.17">정식 배포 1.2.0-rc.17 · 변경 사항</a> · Windows 11 x64에서 확인</p>
 
 ## 시작하기
 
@@ -79,8 +79,6 @@
 
 조작을 받는 PC에서 설정을 열고 **MWBP** 탭의 **설치 복구…** 버튼을 누르세요. Windows 승인은 그 PC에서 직접 진행하세요.
 
-Windows 승인(UAC)·로그인·잠금 화면만 원격 조작에서 빼고 싶다면 같은 탭의 **Windows 승인 화면 차단…** 버튼을 누르세요. 관리자 앱은 계속 조작할 수 있고, 같은 버튼으로 다시 허용할 수 있습니다. 차단해 두면 같은 Windows 계정의 다른 앱이 MWBP를 통해 사용자 모르게 관리자 확인을 승인하지 못합니다.
-
 이 설정은 연결된 PC가 관리자 화면을 조작하도록 허용합니다. 같은 Windows 계정의 다른 앱이 이 권한을 악용할 수도 있습니다. Windows 정책으로 허용되지 않아도 일반 마우스 공유와 파일 전송은 사용할 수 있습니다.
 
 </details>
@@ -90,7 +88,7 @@ Windows 승인(UAC)·로그인·잠금 화면만 원격 조작에서 빼고 싶�
 
 설치 파일에 제작자를 확인하는 디지털 서명이 없기 때문입니다. Windows가 게시자를 확인하지 못해 표시하는 안내입니다.
 
-설치 전에 [다운로드 파일 정보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.18)에서 파일 이름과 출처를 확인하세요.
+설치 전에 [다운로드 파일 정보](https://github.com/ttaem00/CVA-VEIL-Mouse_Without_Border_Plus/releases/tag/mwb-v1.2.0-rc.17)에서 파일 이름과 출처를 확인하세요.
 
 </details>
 
