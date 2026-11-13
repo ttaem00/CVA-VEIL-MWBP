@@ -133,6 +133,9 @@
   <data name="&amp;Move mouse relatively" xml:space="preserve">
     <value>상대 마우스 이동(&amp;M)</value>
   </data>
+  <data name="When controlling one PC, send movement distances from the first move. Turn on before controlling a 3D game. This setting is shared with connected PCs." xml:space="preserve">
+    <value>PC 한 대를 조작할 때 첫 이동부터 움직인 거리를 보냅니다. 3D 게임을 조작하기 전에 켜세요. 연결된 PC와 공유하는 설정입니다.</value>
+  </data>
   <data name="&amp;Block mouse at screen corners" xml:space="preserve">
     <value>화면 모서리에서 전환 차단(&amp;B)</value>
   </data>

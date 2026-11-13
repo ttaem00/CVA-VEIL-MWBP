@@ -98,8 +98,8 @@ internal static class Helper
 
                 if (MachineStuff.NewDesMachineID != Common.MachineID && MachineStuff.NewDesMachineID != ID.ALL)
                 {
-                    Common.HideMouseCursor(false);
-                    Helper.MainFormDotEx(true);
+                    Common.HideMouseCursor();
+                    Helper.MainFormDotEx();
                 }
                 else
                 {
@@ -135,7 +135,7 @@ internal static class Helper
         Logger.LogDebug("^^^Helper Thread exiting...^^^");
     }
 
-    internal static void MainFormDotEx(bool bCheckTS)
+    internal static void MainFormDotEx()
     {
         Logger.LogDebug("***** MainFormDotEx:");
 

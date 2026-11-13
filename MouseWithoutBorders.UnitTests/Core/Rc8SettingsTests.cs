@@ -273,7 +273,8 @@ public sealed class Rc8SettingsTests
                 var setupTab = tabs.SelectedTab;
                 tabs.SelectedTab = tabs.TabPages.Cast<TabPage>().Single(t => t.Name == "tabPageOther"); Application.DoEvents();
                 Assert.IsTrue(Descendants(form).Single(c => c.Name == "checkBoxMouseEdgeSwitching").Visible);
-                foreach (string obsolete in new[] { "checkBoxCircle", "checkBoxMouseMoveRelatively", "checkBoxBlockMouseAtCorners" })
+                Assert.IsTrue(Descendants(form).Single(c => c.Name == "checkBoxMouseMoveRelatively").Visible);
+                foreach (string obsolete in new[] { "checkBoxCircle", "checkBoxBlockMouseAtCorners" })
                     Assert.IsFalse(Descendants(form).Single(c => c.Name == obsolete).Visible, "An ineffective option cannot remain visible.");
                 tabs.SelectedTab = setupTab; Application.DoEvents();
                 uint local = (uint)Common.MachineID;

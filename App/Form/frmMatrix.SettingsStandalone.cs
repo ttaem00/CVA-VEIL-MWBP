@@ -305,6 +305,7 @@ internal partial class FrmMatrix
         {
             var mouse = Section("Mouse and screen switching");
             AddOption(mouse, checkBoxMouseEdgeSwitching, "On");
+            AddOption(mouse, checkBoxMouseMoveRelatively, "Off", "When controlling one PC, send movement distances from the first move. Turn on before controlling a 3D game. This setting is shared with connected PCs.");
             labelEasyMouse.Text = "Activation:"; labelEasyMouse.AutoSize = true;
             comboBoxEasyMouseOption.ResetFont();
             SetOptionTip(comboBoxEasyMouseOption, "Always", "Switch at a screen edge immediately, or only while holding Ctrl or Shift.");

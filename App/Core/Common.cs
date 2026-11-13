@@ -1458,17 +1458,17 @@ internal static class Common
             MachineStuff.PrimaryScreenBounds.Top + ((MachineStuff.PrimaryScreenBounds.Bottom - MachineStuff.PrimaryScreenBounds.Top) / 2));
     }
 
-    internal static void HideMouseCursor(bool byHideMouseMessage)
+    internal static void HideMouseCursor()
     {
         Common.LastPos = new Point(
             MachineStuff.PrimaryScreenBounds.Left + ((MachineStuff.PrimaryScreenBounds.Right - MachineStuff.PrimaryScreenBounds.Left) / 2),
             Setting.Values.HideMouse ? 4 : MachineStuff.PrimaryScreenBounds.Top + ((MachineStuff.PrimaryScreenBounds.Bottom - MachineStuff.PrimaryScreenBounds.Top) / 2));
 
-        if ((MachineStuff.desMachineID != MachineID && MachineStuff.desMachineID != ID.ALL) || byHideMouseMessage)
+        if (MachineStuff.desMachineID != MachineID && MachineStuff.desMachineID != ID.ALL)
         {
             _ = NativeMethods.SetCursorPos(Common.LastPos.X, Common.LastPos.Y);
             _ = NativeMethods.GetCursorPos(ref Common.lastPos);
-            Logger.LogDebug($"+++++ HideMouseCursor, byHideMouseMessage = {byHideMouseMessage}");
+            Logger.LogDebug("+++++ HideMouseCursor");
         }
 
         CustomCursor.ShowFakeMouseCursor(int.MinValue, int.MinValue);

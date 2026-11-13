@@ -140,30 +140,6 @@ internal static class Event
             return false;
         }
 
-        bool captured = peer != (uint)Common.MachineID && PointerCapture.IsCaptured(peer);
-        if (captured && !InputHook.EasyMouseKeyDown)
-        {
-            // Normal gameplay sends distances without advancing a screen position. The held
-            // activation key lets the same movement drive the layout for an intentional exit.
-            return SendCapturedMouse((ID)peer, e, dx, dy);
-        }
-
-        if (!captured && peer != (uint)Common.MachineID && PointerCapture.TakeResume(peer) is { } resume)
-        {
-            // Resume from the actual position after the receiving app releases the cursor.
-            Rectangle peerDesktop = Rectangle.Empty;
-            foreach (var monitor in layout.Monitors)
-                if (monitor.Key.Peer == peer) peerDesktop = peerDesktop.IsEmpty ? monitor.NativeBounds : Rectangle.Union(peerDesktop, monitor.NativeBounds);
-            if (!peerDesktop.IsEmpty)
-            {
-                var point = new Point(peerDesktop.Left + Math.Min(peerDesktop.Width - 1, (int)((long)resume.X * peerDesktop.Width / 65535)),
-                    peerDesktop.Top + Math.Min(peerDesktop.Height - 1, (int)((long)resume.Y * peerDesktop.Height / 65535)));
-                foreach (var monitor in layout.Monitors)
-                    if (monitor.Key.Peer == peer && monitor.NativeBounds.Contains(point))
-                    { activeMonitor = monitor.Key; monitorPoint = point; break; }
-            }
-        }
-
         bool allowSharing = IsSwitchingByMouseEnabled();
         if (peer == (uint)Common.MachineID && !allowSharing)
         {
@@ -172,6 +148,14 @@ internal static class Event
             ResetMonitorPointer(point);
             Common.LastPos = point;
             return false;
+        }
+
+        bool relative = Setting.Values.MoveMouseRelatively;
+        if (relative && !allowSharing)
+        {
+            // The held key moves the layout position. Ordinary gameplay only sends distances.
+            SendRelativeMouse((ID)peer, e, dx, dy);
+            return Common.DesMachineID != Common.MachineID;
         }
 
         MonitorPlacement current = default;
@@ -215,8 +199,6 @@ internal static class Event
         {
             // The hook completes local arrival before exposing the following physical click/key.
             MachineStuff.SwitchLocation.Count = 0;
-            // An explicit arrival supersedes any older cursor position reported by the target.
-            _ = PointerCapture.TakeResume(activeMonitor.Value.Peer);
         }
 
         if (activeMonitor.Value.Peer == (uint)Common.MachineID)
@@ -228,13 +210,12 @@ internal static class Event
             return changedPeer || warped;
         }
 
-        if (!changedPeer && captured) return SendCapturedMouse((ID)peer, e, dx, dy);
-        if (changedPeer && PointerCapture.IsCaptured(activeMonitor.Value.Peer))
+        if (relative)
         {
-            // The crossing movement belonged to the previous PC. A known game receives its
-            // next real movement as a distance, without an absolute arrival warp.
-            Common.HideMouseCursor(false);
-            return true;
+            // The crossing movement belongs to the previous PC.
+            if (changedPeer) Common.HideMouseCursor();
+            else SendRelativeMouse((ID)peer, e, dx, dy);
+            return Common.DesMachineID != Common.MachineID;
         }
 
         Rectangle targetDesktop = position.Monitor.NativeBounds;
@@ -248,16 +229,16 @@ internal static class Event
         MousePackage.Md.Y = (int)((long)(monitorPoint.Y - targetDesktop.Top) * 65535 / targetDesktop.Height);
         Common.SkSend(MousePackage, null, false);
         if (Common.DesMachineID == Common.MachineID) return false;
-        if (changedPeer) Common.HideMouseCursor(false);
+        if (changedPeer) Common.HideMouseCursor();
         return true;
     }
 
-    private static bool SendCapturedMouse(ID peer, MOUSEDATA mouse, int dx, int dy)
+    private static void SendRelativeMouse(ID peer, MOUSEDATA mouse, int dx, int dy)
     {
         bool move = mouse.dwFlags == WM.WM_MOUSEMOVE;
         if (move)
         {
-            if (dx == 0 && dy == 0) return true;
+            if (dx == 0 && dy == 0) return;
             myLastX = mouse.X;
             myLastY = mouse.Y;
         }
@@ -265,10 +246,9 @@ internal static class Event
         MousePackage.Des = peer;
         MousePackage.Type = PackageType.Mouse;
         MousePackage.Md = mouse;
-        MousePackage.Md.X = move ? PointerCapture.Encode(Math.Clamp(dx, -PointerCapture.MaxDistance, PointerCapture.MaxDistance)) : MOVE_MOUSE_RELATIVE;
-        MousePackage.Md.Y = move ? PointerCapture.Encode(Math.Clamp(dy, -PointerCapture.MaxDistance, PointerCapture.MaxDistance)) : MOVE_MOUSE_RELATIVE;
+        MousePackage.Md.X = move ? RelativeMouse.Encode(Math.Clamp(dx, -RelativeMouse.MaxDistance, RelativeMouse.MaxDistance)) : MOVE_MOUSE_RELATIVE;
+        MousePackage.Md.Y = move ? RelativeMouse.Encode(Math.Clamp(dy, -RelativeMouse.MaxDistance, RelativeMouse.MaxDistance)) : MOVE_MOUSE_RELATIVE;
         Common.SkSend(MousePackage, null, false);
-        return Common.DesMachineID != Common.MachineID;
     }
 
     internal static bool IsSwitchingByMouseEnabled()

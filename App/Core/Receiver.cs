@@ -173,15 +173,14 @@ internal static class Receiver
 
                     bool relative = Math.Abs((long)package.Md.X) >= Event.MOVE_MOUSE_RELATIVE
                         && Math.Abs((long)package.Md.Y) >= Event.MOVE_MOUSE_RELATIVE;
-                    MOUSEDATA? requestedMove = null;
                     if (relative)
                     {
                         if (package.Md.dwFlags == WM.WM_MOUSEMOVE)
                         {
                             // A distance. The controller owns routing between PCs, so this PC
                             // never chooses a neighbour from where its pointer ended up.
-                            if (PointerCapture.IsRelativeMove(package))
-                                InputSimulation.MoveMouseRelative(PointerCapture.Decode(package.Md.X), PointerCapture.Decode(package.Md.Y));
+                            if (RelativeMouse.IsRelativeMove(package))
+                                InputSimulation.MoveMouseRelative(RelativeMouse.Decode(package.Md.X), RelativeMouse.Decode(package.Md.Y));
                         }
                         else
                         {
@@ -191,22 +190,19 @@ internal static class Receiver
                     }
                     else
                     {
-                        uint applied = InputSimulation.SendMouse(package.Md);
-                        if (applied != 0 && package.Md.dwFlags == WM.WM_MOUSEMOVE) requestedMove = package.Md;
+                        _ = InputSimulation.SendMouse(package.Md);
                     }
 
-                    bool captured = PointerCapture.Observe(package.Src, package.Des == Common.MachineID ? tcp : null,
-                        relative && package.Md.dwFlags == WM.WM_MOUSEMOVE, requestedMove);
-                    if (NativeMethods.GetCursorPos(ref lastXY))
+                    bool cursorPositionKnown = NativeMethods.GetCursorPos(ref lastXY);
+                    if (cursorPositionKnown)
                     {
                         Common.LastX = lastXY.X;
                         Common.LastY = lastXY.Y;
-                        if (!captured) CustomCursor.ShowFakeMouseCursor(Common.LastX, Common.LastY);
                     }
-                    else
-                    {
+                    if (relative || !cursorPositionKnown)
                         CustomCursor.ShowFakeMouseCursor(int.MinValue, int.MinValue);
-                    }
+                    else
+                        CustomCursor.ShowFakeMouseCursor(lastXY.X, lastXY.Y);
                 }
 
                 DragDrop.DragDropStep01(package.Md.dwFlags);
@@ -413,13 +409,12 @@ internal static class Receiver
                 break;
 
             case PackageType.PointerCapture:
-                PointerCapture.Receive(package, tcp);
+                // RC19/20 may still send this notification. Movement is selected on the sender.
                 break;
 
             case PackageType.HideMouse:
                 Clipboard.HasSwitchedMachineSinceLastCopy = true;
-                Common.HideMouseCursor(!PointerCapture.LocalCapture);
-                Helper.MainFormDotEx(false);
+                CustomCursor.ShowFakeMouseCursor(int.MinValue, int.MinValue);
                 InitAndCleanup.ReleaseAllKeys();
                 break;
 
