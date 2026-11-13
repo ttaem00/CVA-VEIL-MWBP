@@ -284,7 +284,7 @@ public sealed class MonitorInputIntegrationTests
     }
 
     [TestMethod]
-    public void HeldCapsLockCrossesBothWaysWithoutSendingAnAbsoluteMoveToTheCapturedGame()
+    public void HeldCapsLockCrossesBothWaysWithoutSendingAnAbsoluteMoveInRelativeMode()
     {
         using var game = new QueuedPeer(202);
         var transport = QueueTransport(game.Peer);
@@ -302,18 +302,16 @@ public sealed class MonitorInputIntegrationTests
             frame.Type = (PackageType)((int)frame.Type & 0xff);
             return frame;
         }
-
-        PointerCapture.ResetForTest();
         try
         {
             held.Clear();
             synthetic.EasyMouse = (int)EasyMouseOption.Custom;
             synthetic.EasyMouseActivationKeys = [20];
+            synthetic.MoveMouseRelatively = true;
             MachineStuff.desMachineID = MachineStuff.newDesMachineID = (ID)101;
             var edge = new Point(2559, 100);
             Common.LastPos = edge;
             Event.ResetMonitorPointer(edge);
-            PointerCapture.Receive(new DATA { Type = PackageType.PointerCapture, Des = (ID)101, Md = new() { dwFlags = 1 } }, game.Peer);
 
             InvokeKeyboard(hook, 20, false);
             Assert.AreEqual(1, InvokeMouse(hook, WM.WM_MOUSEMOVE, edge, 0));
@@ -322,7 +320,7 @@ public sealed class MonitorInputIntegrationTests
             var arrival = game.Wire.ToArray();
             for (int offset = 0; offset < arrival.Length; offset += Package.PACKAGE_SIZE)
                 Assert.AreNotEqual(PackageType.Mouse, ReadFrame(arrival, offset).Type,
-                    "Arrival must not warp a captured cursor or send the previous PC's delta.");
+                    "Relative arrival must not send a position or the previous PC's delta.");
             game.Wire.SetLength(0);
 
             var parked = Common.LastPos;
@@ -333,12 +331,37 @@ public sealed class MonitorInputIntegrationTests
             WaitForInput(transport);
             var movement = game.Wire.ToArray();
             Assert.IsTrue(movement.Length >= Package.PACKAGE_SIZE);
+            int sentX = 0;
             for (int offset = 0; offset < movement.Length; offset += Package.PACKAGE_SIZE)
-                Assert.IsTrue(PointerCapture.IsRelativeMove(ReadFrame(movement, offset)));
+            {
+                var move = ReadFrame(movement, offset);
+                Assert.IsTrue(RelativeMouse.IsRelativeMove(move));
+                sentX += RelativeMouse.Decode(move.Md.X);
+                Assert.AreEqual(0, RelativeMouse.Decode(move.Md.Y));
+            }
+            Assert.AreEqual(-10, sentX, "Only the two physical deltas may reach the remote PC.");
+
+            game.Wire.SetLength(0);
+            Assert.AreEqual(1, InvokeMouse(hook, WM.WM_LBUTTONDOWN, parked, 0));
+            Assert.AreEqual(1, InvokeMouse(hook, WM.WM_LBUTTONUP, parked, 0));
+            Assert.AreEqual(1, InvokeMouse(hook, WM.WM_MOUSEWHEEL, parked, -120));
+            WaitForInput(transport);
+            var buttons = game.Wire.ToArray();
+            int[] messages = [WM.WM_LBUTTONDOWN, WM.WM_LBUTTONUP, WM.WM_MOUSEWHEEL];
+            Assert.AreEqual(messages.Length * Package.PACKAGE_SIZE, buttons.Length);
+            for (int i = 0; i < messages.Length; i++)
+            {
+                var button = ReadFrame(buttons, i * Package.PACKAGE_SIZE);
+                Assert.AreEqual(PackageType.Mouse, button.Type);
+                Assert.AreEqual(messages[i], button.Md.dwFlags);
+                Assert.AreEqual(Event.MOVE_MOUSE_RELATIVE, button.Md.X);
+                Assert.AreEqual(Event.MOVE_MOUSE_RELATIVE, button.Md.Y);
+                Assert.AreEqual(messages[i] == WM.WM_MOUSEWHEEL ? -120 : 0, button.Md.WheelDelta);
+            }
 
             InvokeKeyboard(hook, 20, false);
             Assert.AreEqual(1, InvokeMouse(hook, WM.WM_MOUSEMOVE, new Point(parked.X - 15, parked.Y), 0));
-            Assert.AreEqual((ID)101, Common.DesMachineID, "Caps Lock permits a deliberate return while the game still captures the pointer.");
+            Assert.AreEqual((ID)101, Common.DesMachineID, "Caps Lock permits a deliberate return in relative mode.");
             WaitForInput(transport);
             var exit = game.Wire.ToArray();
             Assert.AreEqual(PackageType.HideMouse, ReadFrame(exit, exit.Length - Package.PACKAGE_SIZE).Type);
@@ -347,43 +370,8 @@ public sealed class MonitorInputIntegrationTests
         {
             held.Clear();
             foreach (int key in previousKeys) held.Update(key, true);
-            PointerCapture.ResetForTest();
             if (canRestorePosition) NativeMethods.SetCursorPos(nativePosition.X, nativePosition.Y);
         }
-    }
-
-    [TestMethod]
-    public void NewerCaptureStateWinsAcrossTwoLiveConnectionsAndDoesNotAffectOtherPeers()
-    {
-        using var first = new QueuedPeer(202);
-        using var second = new QueuedPeer(202);
-        using var other = new QueuedPeer(303);
-        PointerCapture.ResetForTest();
-        try
-        {
-            DATA Notice(int sequence, bool capture) => new()
-            {
-                Type = PackageType.PointerCapture,
-                Des = (ID)101,
-                Md = new() { dwFlags = capture ? 1 : 0, WheelDelta = sequence, X = 100, Y = 200 },
-            };
-            PointerCapture.Receive(Notice(10, true), first.Peer);
-            PointerCapture.Receive(Notice(10, true), other.Peer);
-            Assert.IsTrue(PointerCapture.IsCaptured(202));
-            PointerCapture.Receive(Notice(12, false), second.Peer);
-            Assert.IsFalse(PointerCapture.IsCaptured(202));
-            Assert.AreEqual(new Point(100, 200), PointerCapture.TakeResume(202));
-            second.Peer.Status = SocketStatus.SendError;
-            PointerCapture.Receive(Notice(11, true), first.Peer);
-            Assert.IsFalse(PointerCapture.IsCaptured(202), "An older notice cannot undo a release when a sibling channel has closed.");
-            Assert.IsTrue(PointerCapture.IsCaptured(303));
-            PointerCapture.Receive(Notice(13, true), first.Peer);
-            Assert.IsTrue(PointerCapture.IsCaptured(202));
-            PointerCapture.PeerDisconnected(202);
-            PointerCapture.Receive(Notice(2, true), first.Peer);
-            Assert.IsTrue(PointerCapture.IsCaptured(202), "After losing all channels, a restarted peer can start a new sequence.");
-        }
-        finally { PointerCapture.ResetForTest(); }
     }
 
     [TestMethod]

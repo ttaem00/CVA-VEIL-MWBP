@@ -29,7 +29,7 @@ internal sealed class PeerInputWriter(SocketStuff owner, TcpSk peer)
             if (stopped) return false;
             if (PureMove(copy) && pending.Last is { } tail && PureMove(tail.Value)) tail.Value = copy;
             // Unsent distances add up; they are never replaced, and never grow the queue.
-            else if (pending.Last is { } distance && PointerCapture.TryMerge(distance.Value, copy, out var merged)) distance.Value = merged;
+            else if (pending.Last is { } distance && RelativeMouse.TryMerge(distance.Value, copy, out var merged)) distance.Value = merged;
             else if (pending.Count < Capacity) pending.AddLast(copy);
             else { StopLocked(); overflow = true; }
             if (!overflow)

@@ -211,7 +211,6 @@ namespace MouseWithoutBorders.Class
             InputSimulation.PeerDisconnected(peer.MachineId);
             if (!SocketSnapshot.Any(t => t.MachineId == peer.MachineId && t.Status == SocketStatus.Connected && t.BackingSocket != null))
             {
-                PointerCapture.PeerDisconnected(peer.MachineId);
                 Common.InputCallbackForm?.NotifyInputPeerFailure(this, peer.MachineId);
             }
             InitAndCleanup.PleaseReopenSocket = InitAndCleanup.REOPEN_WHEN_WSAECONNRESET;
@@ -494,7 +493,6 @@ namespace MouseWithoutBorders.Class
                                     }
 
                                     TcpSockets = notClosedSockets;
-                                    if (Common.Sk == null || ReferenceEquals(Common.Sk, this)) PointerCapture.TransportClosed();
                                 }
 
                                 Logger.LogDebug("********** Sockets Closed: " + c.ToString(CultureInfo.CurrentCulture));
@@ -2089,7 +2087,6 @@ namespace MouseWithoutBorders.Class
                             && !TcpSockets.Any(t => t.MachineId == tcp.MachineId
                                 && t.Status == SocketStatus.Connected && t.BackingSocket != null))
                         {
-                            PointerCapture.PeerDisconnected(tcp.MachineId);
                             DragDrop.PeerDisconnected(this, (ID)tcp.MachineId);
                         }
                     }

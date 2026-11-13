@@ -969,7 +969,7 @@ internal static class MachineStuff
             SwitchLocation.Y = Event.XY_BY_PIXEL + primaryScreenBounds.Top + ((primaryScreenBounds.Bottom - primaryScreenBounds.Top) / 2);
             SwitchLocation.ResetCount();
             Common.UpdateMultipleModeIconAndMenu();
-            Common.HideMouseCursor(false);
+            Common.HideMouseCursor();
             _ = Common.EvSwitch.Set();
         }
     }
